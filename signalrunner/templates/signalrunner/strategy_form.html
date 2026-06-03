@@ -1,0 +1,220 @@
+{% extends "signalrunner/base.html" %}
+{% block title %}{% if strategy %}Edit{% else %}New{% endif %} Strategy{% endblock %}
+{% block nav_strategies %}active{% endblock %}
+{% block content %}
+<div class="pagehead">
+  <div>
+    <h1>{% if strategy %}Edit strategy{% else %}New strategy{% endif %}</h1>
+    <p class="label">Define what to watch and when to fire</p>
+  </div>
+  <a href="{% url 'strategy_list' %}" class="btn btn-ghost">← Back</a>
+</div>
+
+<form method="post" action="{% if strategy %}{% url 'strategy_edit' strategy.id %}{% else %}{% url 'strategy_new' %}{% endif %}">
+  {% csrf_token %}
+  <div class="panel">
+    <h2>Basic</h2>
+    <div class="grid-2">
+      <label class="field">
+        <span class="lbl">Strategy name</span>
+        <input type="text" name="name" value="{{ strategy.name|default:'' }}" placeholder="e.g. IAM RSI oversold" required>
+      </label>
+      <label class="field">
+        <span class="lbl">BVC tickers <span style="color:var(--text-dim)">(comma-separated)</span></span>
+        <input type="text" name="tickers" value="{{ strategy.tickers|join:', '|default:'' }}" placeholder="IAM, ATW, BCP">
+        <span class="hint">Use official BVC ticker codes</span>
+      </label>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Strategy kind</h2>
+    <div class="tabs" style="display:flex;gap:0;margin-bottom:18px;border-bottom:1px solid var(--border);">
+      <button type="button" data-tab="rule"      class="tab-btn {% if not strategy or strategy.kind == 'rule' %}active{% endif %}">Simple rule</button>
+      <button type="button" data-tab="indicator" class="tab-btn {% if strategy.kind == 'indicator' %}active{% endif %}">Indicator</button>
+      <button type="button" data-tab="custom"    class="tab-btn {% if strategy.kind == 'custom_python' %}active{% endif %}">Custom Python</button>
+    </div>
+
+    <input type="hidden" name="kind" id="kind-input" value="{{ strategy.kind|default:'rule' }}">
+
+    <div class="tabpane {% if not strategy or strategy.kind == 'rule' %}active{% endif %}" id="tab-rule">
+      <div class="grid-3">
+        <label class="field">
+          <span class="lbl">Field</span>
+          <select name="rule_field">
+            <option value="price" {% if strategy.config.field == 'price' %}selected{% endif %}>Price</option>
+            <option value="pct_change" {% if strategy.config.field == 'pct_change' %}selected{% endif %}>% Change</option>
+            <option value="volume" {% if strategy.config.field == 'volume' %}selected{% endif %}>Volume</option>
+          </select>
+        </label>
+        <label class="field">
+          <span class="lbl">Operator</span>
+          <select name="rule_op">
+            <option value=">=" {% if strategy.config.op == ">=" %}selected{% endif %}>>=</option>
+            <option value=">" {% if strategy.config.op == ">" %}selected{% endif %}>&gt;</option>
+            <option value="<=" {% if strategy.config.op == "<=" %}selected{% endif %}><=</option>
+            <option value="<" {% if strategy.config.op == "<" %}selected{% endif %}>&lt;</option>
+            <option value="==" {% if strategy.config.op == "==" %}selected{% endif %}">==</option>
+          </select>
+        </label>
+        <label class="field">
+          <span class="lbl">Value</span>
+          <input type="number" step="any" name="rule_value" value="{{ strategy.config.value|default:'' }}" placeholder="3.0">
+        </label>
+      </div>
+      <label class="field" style="max-width:200px;">
+        <span class="lbl">Direction</span>
+        <select name="rule_direction">
+          <option value="buy" {% if strategy.config.direction == 'buy' or not strategy %}selected{% endif %}>Buy</option>
+          <option value="sell" {% if strategy.config.direction == 'sell' %}selected{% endif %}>Sell</option>
+        </select>
+      </label>
+    </div>
+
+    <div class="tabpane {% if strategy.kind == 'indicator' %}active{% endif %}" id="tab-indicator">
+      <div class="grid-2">
+        <label class="field">
+          <span class="lbl">Indicator</span>
+          <select name="ind_indicator" id="ind-select">
+            <option value="rsi" {% if strategy.config.indicator == 'rsi' %}selected{% endif %}>RSI</option>
+            <option value="ma_cross" {% if strategy.config.indicator == 'ma_cross' %}selected{% endif %}>MA Crossover (SMA)</option>
+            <option value="macd" {% if strategy.config.indicator == 'macd' %}selected{% endif %}>MACD</option>
+          </select>
+        </label>
+        <div id="rsi-params" class="ind-params">
+          <label class="field">
+            <span class="lbl">Period</span>
+            <input type="number" name="ind_period" value="{{ strategy.config.period|default:14 }}" min="2" max="200">
+          </label>
+        </div>
+        <div id="ma-params" class="ind-params" style="display:none;">
+          <div class="grid-2">
+            <label class="field"><span class="lbl">Fast MA</span><input type="number" name="ind_fast" value="{{ strategy.config.fast|default:20 }}"></label>
+            <label class="field"><span class="lbl">Slow MA</span><input type="number" name="ind_slow" value="{{ strategy.config.slow|default:50 }}"></label>
+          </div>
+        </div>
+        <div id="macd-params" class="ind-params" style="display:none;">
+          <div class="grid-3">
+            <label class="field"><span class="lbl">Fast</span><input type="number" name="ind_macd_fast" value="{{ strategy.config.fast|default:12 }}"></label>
+            <label class="field"><span class="lbl">Slow</span><input type="number" name="ind_macd_slow" value="{{ strategy.config.slow|default:26 }}"></label>
+            <label class="field"><span class="lbl">Signal</span><input type="number" name="ind_macd_signal" value="{{ strategy.config.signal|default:9 }}"></label>
+          </div>
+        </div>
+      </div>
+      <div class="grid-2" id="rsi-condition">
+        <label class="field">
+          <span class="lbl">Condition operator</span>
+          <select name="ind_op">
+            <option value="<" {% if strategy.config.op == "<" %}selected{% endif %}>&lt;</option>
+            <option value=">" {% if strategy.config.op == ">" %}selected{% endif %}>&gt;</option>
+            <option value="<=" {% if strategy.config.op == "<=" %}selected{% endif %}><=</option>
+            <option value=">=" {% if strategy.config.op == ">=" %}selected{% endif %}>>=</option>
+            <option value="==" {% if strategy.config.op == "==" %}selected{% endif %}">==</option>
+          </select>
+        </label>
+        <label class="field">
+          <span class="lbl">Threshold</span>
+          <input type="number" step="any" name="ind_value" value="{{ strategy.config.value|default:30 }}">
+        </label>
+      </div>
+      <label class="field" style="max-width:200px;" id="ind-direction">
+        <span class="lbl">Direction</span>
+        <select name="ind_direction">
+          <option value="buy" {% if strategy.config.direction == 'buy' or not strategy %}selected{% endif %}>Buy</option>
+          <option value="sell" {% if strategy.config.direction == 'sell' %}selected{% endif %}>Sell</option>
+        </select>
+      </label>
+    </div>
+
+    <div class="tabpane {% if strategy.kind == 'custom_python' %}active{% endif %}" id="tab-custom">
+      <label class="field">
+        <span class="lbl">Python code</span>
+        <textarea name="code" class="mono" style="min-height:220px;tab-size:4;">{{ strategy.code|default:starter_code }}</textarea>
+        <span class="hint">Runs in a sandboxed subprocess with a 30s timeout. No network or file access.</span>
+      </label>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Schedule</h2>
+    <div class="grid-3">
+      <label class="field">
+        <span class="lbl">Schedule kind</span>
+        <select name="schedule_kind" id="sched-select">
+          <option value="manual" {% if not strategy or strategy.schedule_kind == 'manual' %}selected{% endif %}>Manual only</option>
+          <option value="interval" {% if strategy.schedule_kind == 'interval' %}selected{% endif %}>Every N minutes</option>
+          <option value="daily" {% if strategy.schedule_kind == 'daily' %}selected{% endif %}>Daily at time</option>
+        </select>
+      </label>
+      <label class="field" id="interval-field" {% if not strategy or strategy.schedule_kind != 'interval' %}style="display:none;"{% endif %}>
+        <span class="lbl">Interval (minutes)</span>
+        <input type="number" name="interval_minutes" value="{{ strategy.interval_minutes|default:15 }}" min="5">
+        <span class="hint">Minimum 5 minutes (BVC is not real-time)</span>
+      </label>
+      <label class="field" id="daily-field" {% if not strategy or strategy.schedule_kind != 'daily' %}style="display:none;"{% endif %}>
+        <span class="lbl">Time (HH:MM, Casablanca)</span>
+        <input type="text" name="daily_at" value="{{ strategy.daily_at|default:'09:30' }}" placeholder="09:30">
+      </label>
+    </div>
+    <label class="field" style="max-width:160px;">
+      <span class="lbl">Enabled</span>
+      <select name="enabled">
+        <option value="1" {% if not strategy or strategy.enabled %}selected{% endif %}>Yes</option>
+        <option value="0" {% if strategy and not strategy.enabled %}selected{% endif %}>No (paused)</option>
+      </select>
+    </label>
+  </div>
+
+  <div class="row">
+    <button type="submit" class="btn btn-primary">Save strategy</button>
+    <a href="{% url 'strategy_list' %}" class="btn btn-ghost">Cancel</a>
+  </div>
+</form>
+{% endblock %}
+
+{% block body_extra %}
+<script>
+// Tab switcher
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tabpane').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+    document.getElementById('kind-input').value =
+      btn.dataset.tab === 'custom' ? 'custom_python' : btn.dataset.tab;
+  });
+});
+// Schedule kind show/hide
+document.getElementById('sched-select').addEventListener('change', function() {
+  document.getElementById('interval-field').style.display = this.value === 'interval' ? '' : 'none';
+  document.getElementById('daily-field').style.display = this.value === 'daily' ? '' : 'none';
+});
+// Indicator params show/hide
+const indSel = document.getElementById('ind-select');
+function updateIndParams() {
+  document.querySelectorAll('.ind-params').forEach(el => el.style.display = 'none');
+  document.getElementById('rsi-condition').style.display = 'none';
+  document.getElementById('ind-direction').style.display = 'none';
+  if (indSel.value === 'rsi') {
+    document.getElementById('rsi-params').style.display = '';
+    document.getElementById('rsi-condition').style.display = '';
+    document.getElementById('ind-direction').style.display = '';
+  } else if (indSel.value === 'ma_cross') {
+    document.getElementById('ma-params').style.display = '';
+  } else if (indSel.value === 'macd') {
+    document.getElementById('macd-params').style.display = '';
+  }
+}
+if (indSel) { indSel.addEventListener('change', updateIndParams); updateIndParams(); }
+// Tab button style
+document.querySelectorAll('.tab-btn').forEach(b => {
+  b.style.cssText = 'font-family:var(--mono);font-size:.7rem;letter-spacing:.1em;text-transform:uppercase;background:transparent;border:none;border-bottom:2px solid transparent;padding:8px 18px;cursor:pointer;color:var(--text-dim);margin-bottom:-1px;';
+  if (b.classList.contains('active')) { b.style.color = 'var(--amber)'; b.style.borderBottomColor = 'var(--amber)'; }
+  b.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(x => { x.style.color='var(--text-dim)'; x.style.borderBottomColor='transparent'; });
+    b.style.color = 'var(--amber)'; b.style.borderBottomColor = 'var(--amber)';
+  });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,80 @@
+{% extends "signalrunner/base.html" %}
+{% block title %}{{ strategy.name }}{% endblock %}
+{% block nav_strategies %}active{% endblock %}
+{% block head_extra %}
+{% if has_running %}<meta http-equiv="refresh" content="5">{% endif %}
+{% endblock %}
+{% block content %}
+<div class="pagehead">
+  <div>
+    <h1>{{ strategy.name }}</h1>
+    <p class="label">{{ strategy.kind }} · {{ strategy.tickers|join:", " }} · {% if strategy.enabled %}<span style="color:var(--green)">active</span>{% else %}<span style="color:var(--text-dim)">paused</span>{% endif %}</p>
+  </div>
+  <div class="row">
+    <form method="post" action="{% url 'strategy_evaluate' strategy.id %}">{% csrf_token %}
+      <button type="submit" class="btn btn-green">▶ Evaluate now</button>
+    </form>
+    <a href="{% url 'strategy_edit' strategy.id %}" class="btn btn-ghost">Edit</a>
+    <form method="post" action="{% url 'strategy_toggle' strategy.id %}">{% csrf_token %}
+      <button type="submit" class="btn btn-ghost">{% if strategy.enabled %}Pause{% else %}Enable{% endif %}</button>
+    </form>
+    <a href="{% url 'strategy_list' %}" class="btn btn-ghost">← All</a>
+  </div>
+</div>
+
+<div class="grid-2">
+  <div class="panel">
+    <div class="panel-title">Config</div>
+    <table>
+      {% for k,v in strategy.config.items %}
+      <tr><td class="mono" style="color:var(--text-dim);width:40%;">{{ k }}</td><td class="mono">{{ v }}</td></tr>
+      {% endfor %}
+      <tr><td class="mono" style="color:var(--text-dim);">schedule</td>
+        <td class="mono">{% if strategy.schedule_kind == 'interval' %}every {{ strategy.interval_minutes }}m{% elif strategy.schedule_kind == 'daily' %}daily {{ strategy.daily_at }}{% else %}manual{% endif %}</td></tr>
+    </table>
+    {% if strategy.kind == 'custom_python' and strategy.code %}
+    <div style="margin-top:12px;"><div class="panel-title">Code</div><div class="log" style="max-height:200px;overflow-y:auto;">{{ strategy.code }}</div></div>
+    {% endif %}
+  </div>
+
+  <div class="panel">
+    <div class="panel-title">Recent signals</div>
+    {% if signals %}
+    <table>
+      <thead><tr><th>Signal</th><th>Ticker</th><th>Price</th><th>When</th></tr></thead>
+      <tbody>
+        {% for s in signals %}
+        <tr>
+          <td><span class="sig {{ s.direction }}">{{ s.direction|upper }}</span></td>
+          <td><span class="ticker">{{ s.ticker }}</span></td>
+          <td class="price">{% if s.price %}{{ s.price|floatformat:2 }}{% else %}—{% endif %}</td>
+          <td class="mono" style="font-size:.72rem;color:var(--text-dim);">{{ s.created_at|date:"m-d H:i" }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}<div class="empty"><p>No signals yet</p></div>{% endif %}
+  </div>
+</div>
+
+<div class="panel">
+  <div class="panel-title">Evaluation history</div>
+  {% if evaluations %}
+  <table>
+    <thead><tr><th>Status</th><th>Fired</th><th>Signals</th><th>Duration</th><th>Queued</th><th></th></tr></thead>
+    <tbody>
+      {% for ev in evaluations %}
+      <tr>
+        <td><span class="pill {{ ev.status }}">{{ ev.status }}</span></td>
+        <td>{% if ev.fired %}<span style="color:var(--amber);">yes</span>{% else %}<span style="color:var(--text-dim);">—</span>{% endif %}</td>
+        <td class="mono">{{ ev.signals.count }}</td>
+        <td class="mono" style="color:var(--text-dim);">{% if ev.duration_ms %}{{ ev.duration_ms }}ms{% else %}—{% endif %}</td>
+        <td class="mono" style="font-size:.72rem;color:var(--text-dim);">{{ ev.queued_at|date:"m-d H:i" }}</td>
+        <td><a href="{% url 'evaluation_detail' ev.id %}" style="font-size:.72rem;">logs →</a></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}<div class="empty"><p>No evaluations yet</p></div>{% endif %}
+</div>
+{% endblock %}

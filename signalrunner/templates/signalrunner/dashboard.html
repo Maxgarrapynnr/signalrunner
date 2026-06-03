@@ -1,0 +1,76 @@
+{% extends "signalrunner/base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block nav_dash %}active{% endblock %}
+{% block head_extra %}
+<meta http-equiv="refresh" content="30">
+{% endblock %}
+{% block content %}
+<div class="pagehead">
+  <div>
+    <h1>Dashboard</h1>
+    <p class="label">Live signal feed · auto-refreshes every 30s</p>
+  </div>
+  <a href="{% url 'strategy_new' %}" class="btn btn-primary">+ New strategy</a>
+</div>
+
+<div class="grid-3" style="margin-bottom:24px;">
+  <div class="stat">
+    <div class="stat-val">{{ strategy_count }}</div>
+    <div class="stat-label">Active strategies</div>
+  </div>
+  <div class="stat">
+    <div class="stat-val" style="color:var(--green)">{{ buy_count }}</div>
+    <div class="stat-label">Buy signals today</div>
+  </div>
+  <div class="stat">
+    <div class="stat-val" style="color:var(--red)">{{ sell_count }}</div>
+    <div class="stat-label">Sell signals today</div>
+  </div>
+</div>
+
+<div class="grid-2">
+  <div class="panel">
+    <div class="panel-title">Recent signals</div>
+    {% if recent_signals %}
+    <table>
+      <thead><tr><th>Signal</th><th>Ticker</th><th>Price</th><th>Strategy</th><th>When</th></tr></thead>
+      <tbody>
+        {% for s in recent_signals %}
+        <tr>
+          <td><span class="sig {{ s.direction }}">{{ s.direction|upper }}</span></td>
+          <td><span class="ticker">{{ s.ticker }}</span></td>
+          <td class="price">{% if s.price %}{{ s.price|floatformat:2 }}{% else %}—{% endif %}</td>
+          <td class="mono" style="font-size:.75rem;color:var(--text-dim);">{% if s.strategy %}{{ s.strategy.name }}{% else %}—{% endif %}</td>
+          <td class="mono" style="font-size:.72rem;color:var(--text-dim);">{{ s.created_at|date:"H:i" }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="empty"><p>No signals yet</p><p class="label">Run a strategy to see results</p></div>
+    {% endif %}
+  </div>
+
+  <div class="panel">
+    <div class="panel-title">Recent evaluations</div>
+    {% if recent_evals %}
+    <table>
+      <thead><tr><th>Status</th><th>Strategy</th><th>Signals</th><th>Duration</th><th>When</th></tr></thead>
+      <tbody>
+        {% for ev in recent_evals %}
+        <tr>
+          <td><span class="pill {{ ev.status }}">{{ ev.status }}</span></td>
+          <td><a href="{% url 'evaluation_detail' ev.id %}" style="color:var(--text);">{% if ev.strategy %}{{ ev.strategy.name }}{% else %}—{% endif %}</a></td>
+          <td class="mono">{{ ev.signals.count }}</td>
+          <td class="mono" style="color:var(--text-dim);">{% if ev.duration_ms %}{{ ev.duration_ms }}ms{% else %}—{% endif %}</td>
+          <td class="mono" style="font-size:.72rem;color:var(--text-dim);">{{ ev.queued_at|date:"H:i" }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="empty"><p>No evaluations yet</p></div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

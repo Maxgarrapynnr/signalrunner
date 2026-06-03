@@ -1,0 +1,12 @@
+Django>=5.0,<6.0
+django-q2
+gunicorn
+whitenoise
+cryptography
+requests
+
+# Market data + indicators
+casabourse
+pandas
+
+# Telegram delivery uses requests (already listed above)

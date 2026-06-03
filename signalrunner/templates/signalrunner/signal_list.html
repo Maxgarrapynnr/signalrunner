@@ -1,0 +1,29 @@
+{% extends "signalrunner/base.html" %}
+{% block title %}Signals{% endblock %}
+{% block nav_signals %}active{% endblock %}
+{% block content %}
+<div class="pagehead">
+  <div><h1>Signal feed</h1><p class="label">All buy/sell signals · most recent 200</p></div>
+</div>
+{% if signals %}
+<div class="panel" style="padding:0;">
+  <table>
+    <thead><tr><th>Signal</th><th>Ticker</th><th>Price</th><th>Strategy</th><th>Reason</th><th>When</th></tr></thead>
+    <tbody>
+      {% for s in signals %}
+      <tr>
+        <td><span class="sig {{ s.direction }}">{{ s.direction|upper }}</span></td>
+        <td><span class="ticker">{{ s.ticker }}</span></td>
+        <td class="price">{% if s.price %}{{ s.price|floatformat:2 }}{% else %}—{% endif %}</td>
+        <td style="color:var(--text-dim);font-size:.78rem;">{% if s.strategy %}{{ s.strategy.name }}{% else %}—{% endif %}</td>
+        <td class="mono" style="font-size:.72rem;color:var(--text-dim);">{% for k,v in s.reason.items %}{{ k }}={{ v }} {% endfor %}</td>
+        <td class="mono" style="font-size:.72rem;color:var(--text-dim);">{{ s.created_at|date:"Y-m-d H:i" }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="empty"><p>No signals yet</p><p class="label">Signals appear here when a strategy fires</p></div>
+{% endif %}
+{% endblock %}

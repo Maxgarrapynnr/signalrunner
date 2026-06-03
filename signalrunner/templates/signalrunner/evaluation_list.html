@@ -1,0 +1,31 @@
+{% extends "signalrunner/base.html" %}
+{% block title %}Evaluations{% endblock %}
+{% block nav_evals %}active{% endblock %}
+{% block content %}
+<div class="pagehead">
+  <div><h1>Evaluations</h1><p class="label">Most recent 100</p></div>
+</div>
+{% if evaluations %}
+<div class="panel" style="padding:0;">
+  <table>
+    <thead><tr><th>Status</th><th>Strategy</th><th>Trigger</th><th>Fired</th><th>Signals</th><th>Duration</th><th>Queued</th><th></th></tr></thead>
+    <tbody>
+      {% for ev in evaluations %}
+      <tr>
+        <td><span class="pill {{ ev.status }}">{{ ev.status }}</span></td>
+        <td>{% if ev.strategy %}{{ ev.strategy.name }}{% else %}<span style="color:var(--text-dim)">—</span>{% endif %}</td>
+        <td class="mono" style="font-size:.72rem;color:var(--text-dim);">{{ ev.trigger }}</td>
+        <td>{% if ev.fired %}<span style="color:var(--amber)">yes</span>{% else %}<span style="color:var(--text-dim)">—</span>{% endif %}</td>
+        <td class="mono">{{ ev.signals.count }}</td>
+        <td class="mono" style="color:var(--text-dim);">{% if ev.duration_ms %}{{ ev.duration_ms }}ms{% else %}—{% endif %}</td>
+        <td class="mono" style="font-size:.72rem;color:var(--text-dim);">{{ ev.queued_at|date:"m-d H:i" }}</td>
+        <td><a href="{% url 'evaluation_detail' ev.id %}" style="font-size:.72rem;">logs →</a></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="empty"><p>No evaluations yet</p><p class="label">Run a strategy to see results here</p></div>
+{% endif %}
+{% endblock %}

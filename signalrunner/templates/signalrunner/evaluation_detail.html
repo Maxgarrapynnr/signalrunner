@@ -1,0 +1,74 @@
+{% extends "signalrunner/base.html" %}
+{% block title %}Evaluation {{ ev.id }}{% endblock %}
+{% block nav_evals %}active{% endblock %}
+{% block head_extra %}
+{% if ev.status == "queued" or ev.status == "running" %}
+<meta http-equiv="refresh" content="3">
+{% endif %}
+{% endblock %}
+{% block content %}
+<div class="pagehead">
+  <div>
+    <h1 style="display:flex;align-items:center;gap:14px;">
+      Evaluation <span class="pill {{ ev.status }}" style="font-size:.9rem;">{{ ev.status }}</span>
+    </h1>
+    <p class="label">{% if ev.strategy %}{{ ev.strategy.name }}{% else %}deleted strategy{% endif %} · {{ ev.trigger }}{% if ev.duration_ms %} · {{ ev.duration_ms }}ms{% endif %}</p>
+  </div>
+  <a href="{% url 'evaluation_list' %}" class="btn btn-ghost">← All evals</a>
+</div>
+
+{% if ev.status == "queued" or ev.status == "running" %}
+<div class="flash" style="border-color:var(--amber);color:var(--amber);">Evaluating… page refreshes automatically.</div>
+{% endif %}
+
+{% if signals %}
+<div class="panel">
+  <div class="panel-title">Fired signals</div>
+  <table>
+    <thead><tr><th>Signal</th><th>Ticker</th><th>Price</th><th>Reason</th></tr></thead>
+    <tbody>
+      {% for s in signals %}
+      <tr>
+        <td><span class="sig {{ s.direction }}">{{ s.direction|upper }}</span></td>
+        <td><span class="ticker">{{ s.ticker }}</span></td>
+        <td class="price">{% if s.price %}{{ s.price|floatformat:2 }}{% else %}—{% endif %}</td>
+        <td class="mono" style="font-size:.72rem;color:var(--text-dim);">{{ s.reason }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% if ev.computed %}
+<div class="panel">
+  <div class="panel-title">Computed values</div>
+  <table>
+    <thead><tr><th>Ticker</th><th>Values</th></tr></thead>
+    <tbody>
+      {% for ticker, vals in ev.computed.items %}
+      <tr>
+        <td><span class="ticker">{{ ticker }}</span></td>
+        <td class="mono" style="font-size:.75rem;">{% for k,v in vals.items %}<span style="color:var(--text-dim);">{{ k }}=</span><span>{% if v %}{{ v }}{% else %}—{% endif %}</span>  {% endfor %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% if ev.log %}
+<div class="panel">
+  <div class="panel-title">Evaluation log</div>
+  <div class="log">{% for line in ev.log %}<span class="{% if '[OK]' in line %}ok{% elif '[ERROR]' in line %}err{% elif '[WARN]' in line %}warn{% else %}info{% endif %}">{{ line }}</span>
+{% endfor %}</div>
+</div>
+{% endif %}
+
+{% if ev.error %}
+<div class="panel" style="border-color:var(--red);">
+  <div class="panel-title" style="color:var(--red);">Error</div>
+  <div class="log" style="color:var(--red);">{{ ev.error }}</div>
+</div>
+{% endif %}
+{% endblock %}

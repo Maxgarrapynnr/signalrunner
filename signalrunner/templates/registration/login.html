@@ -1,0 +1,21 @@
+{% extends "signalrunner/base.html" %}
+{% block title %}Sign in{% endblock %}
+{% block content %}
+<div style="max-width:380px;margin:60px auto;">
+  <div style="text-align:center;margin-bottom:28px;">
+    <div style="font-family:var(--sans);font-size:1.6rem;font-weight:800;color:var(--text-hi);letter-spacing:.02em;">SignalRunner</div>
+    <div class="label" style="margin-top:4px;">Bourse de Casablanca · personal access</div>
+  </div>
+  <div class="panel">
+    {% if form.errors %}<div class="flash" style="border-color:var(--red);color:var(--red);">Incorrect credentials.</div>{% endif %}
+    <form method="post" action="{% url 'login' %}">
+      {% csrf_token %}
+      <label class="field"><span class="lbl">Username</span><input type="text" name="username" autofocus required></label>
+      <label class="field"><span class="lbl">Password</span><input type="password" name="password" required></label>
+      <input type="hidden" name="next" value="{{ next }}">
+      <button type="submit" class="btn btn-primary" style="width:100%;margin-top:4px;">Sign in</button>
+    </form>
+  </div>
+  <p style="text-align:center;font-size:.68rem;color:var(--text-dim);margin-top:14px;letter-spacing:.08em;">NOT FINANCIAL ADVICE · PERSONAL USE ONLY</p>
+</div>
+{% endblock %}

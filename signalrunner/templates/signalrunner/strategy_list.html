@@ -1,0 +1,46 @@
+{% extends "signalrunner/base.html" %}
+{% block title %}Strategies{% endblock %}
+{% block nav_strategies %}active{% endblock %}
+{% block content %}
+<div class="pagehead">
+  <div><h1>Strategies</h1><p class="label">{{ strategies|length }} defined</p></div>
+  <a href="{% url 'strategy_new' %}" class="btn btn-primary">+ New strategy</a>
+</div>
+
+{% if strategies %}
+<div class="panel" style="padding:0;">
+  <table>
+    <thead><tr><th>Name</th><th>Kind</th><th>Tickers</th><th>Schedule</th><th>Status</th><th>Last run</th><th></th></tr></thead>
+    <tbody>
+      {% for s in strategies %}
+      <tr>
+        <td><a href="{% url 'strategy_detail' s.id %}" style="color:var(--text-hi);font-weight:700;">{{ s.name }}</a></td>
+        <td class="mono" style="font-size:.75rem;color:var(--text-dim);">{{ s.kind }}</td>
+        <td>{% for t in s.tickers %}<span class="ticker" style="margin-right:6px;">{{ t }}</span>{% endfor %}</td>
+        <td class="mono" style="font-size:.75rem;color:var(--text-dim);">
+          {% if s.schedule_kind == 'interval' %}every {{ s.interval_minutes }}m
+          {% elif s.schedule_kind == 'daily' %}daily {{ s.daily_at }}
+          {% else %}manual{% endif %}
+        </td>
+        <td>{% if s.enabled %}<span style="color:var(--green);font-size:.72rem;letter-spacing:.1em;">● ACTIVE</span>{% else %}<span style="color:var(--text-dim);font-size:.72rem;letter-spacing:.1em;">○ PAUSED</span>{% endif %}</td>
+        <td class="mono" style="font-size:.72rem;color:var(--text-dim);">
+          {% with last=s.evaluations.first %}{% if last %}{{ last.queued_at|date:"m-d H:i" }}{% else %}—{% endif %}{% endwith %}
+        </td>
+        <td>
+          <form method="post" action="{% url 'strategy_evaluate' s.id %}" style="display:inline;">{% csrf_token %}
+            <button type="submit" class="btn btn-green" style="padding:4px 12px;font-size:.68rem;">▶ Run</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="empty">
+  <p>No strategies defined</p>
+  <p class="label" style="margin-bottom:16px;">Define a rule, indicator, or custom Python strategy to start generating signals</p>
+  <a href="{% url 'strategy_new' %}" class="btn btn-primary">Create your first strategy</a>
+</div>
+{% endif %}
+{% endblock %}

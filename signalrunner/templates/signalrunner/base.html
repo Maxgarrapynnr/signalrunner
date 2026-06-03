@@ -1,0 +1,186 @@
+{% load static %}<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}SignalRunner{% endblock %} · BVC</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg:       #0a0c0f;
+      --bg2:      #111318;
+      --bg3:      #181c22;
+      --border:   #232830;
+      --border2:  #2e3540;
+      --text:     #c8d0d8;
+      --text-dim: #5a6472;
+      --text-hi:  #e8edf2;
+      --amber:    #f0a830;
+      --amber-d:  #b87820;
+      --green:    #28c87a;
+      --red:      #e03050;
+      --blue:     #4090d8;
+      --mono: 'Space Mono', monospace;
+      --sans: 'Syne', sans-serif;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { font-size: 14px; }
+    body {
+      font-family: var(--mono);
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      line-height: 1.6;
+      /* scanline texture */
+      background-image: repeating-linear-gradient(
+        0deg, transparent, transparent 2px,
+        rgba(255,255,255,.012) 2px, rgba(255,255,255,.012) 3px
+      );
+    }
+    a { color: var(--amber); text-decoration: none; }
+    a:hover { color: var(--text-hi); }
+
+    /* ── Topbar ── */
+    .topbar {
+      border-bottom: 1px solid var(--border);
+      background: var(--bg2);
+      position: sticky; top: 0; z-index: 50;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 24px; height: 52px;
+    }
+    .brand {
+      font-family: var(--sans); font-weight: 800; font-size: 1.1rem;
+      letter-spacing: .02em; color: var(--text-hi);
+      display: flex; align-items: center; gap: 8px;
+    }
+    .brand-dot {
+      width: 8px; height: 8px; background: var(--amber);
+      border-radius: 50%; box-shadow: 0 0 8px var(--amber);
+      animation: pulse 2s ease-in-out infinite;
+    }
+    @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:.4;} }
+    .brand:hover { text-decoration: none; color: var(--text-hi); }
+    .topbar-sub { font-size: .72rem; color: var(--text-dim); letter-spacing: .1em; }
+    nav { display: flex; gap: 2px; }
+    nav a {
+      font-size: .72rem; letter-spacing: .1em; text-transform: uppercase;
+      color: var(--text-dim); padding: 6px 14px;
+      border: 1px solid transparent; transition: all .15s;
+    }
+    nav a:hover { color: var(--text); border-color: var(--border2); }
+    nav a.active { color: var(--amber); border-color: var(--amber-d); }
+
+    /* ── Layout ── */
+    main { max-width: 1200px; margin: 0 auto; padding: 32px 24px 80px; }
+    .pagehead { display: flex; align-items: flex-end; justify-content: space-between; margin-bottom: 24px; gap: 12px; flex-wrap: wrap; }
+    h1 { font-family: var(--sans); font-size: 1.8rem; font-weight: 800; color: var(--text-hi); letter-spacing: -.01em; }
+    h2 { font-family: var(--sans); font-size: 1.05rem; font-weight: 600; color: var(--text-hi); margin-bottom: 12px; }
+    .label { font-size: .68rem; letter-spacing: .12em; text-transform: uppercase; color: var(--text-dim); }
+
+    /* ── Panels ── */
+    .panel { background: var(--bg2); border: 1px solid var(--border); padding: 20px; margin-bottom: 18px; }
+    .panel-title { font-size: .68rem; letter-spacing: .15em; text-transform: uppercase; color: var(--text-dim); margin-bottom: 14px; border-bottom: 1px solid var(--border); padding-bottom: 8px; }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .grid-3 { display: grid; grid-template-columns: repeat(3,1fr); gap: 16px; }
+    .grid-auto { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(260px,1fr)); }
+
+    /* ── Stat cards ── */
+    .stat { background: var(--bg3); border: 1px solid var(--border); padding: 16px 20px; }
+    .stat-val { font-family: var(--sans); font-size: 2rem; font-weight: 800; color: var(--text-hi); line-height: 1; }
+    .stat-label { font-size: .68rem; letter-spacing: .12em; text-transform: uppercase; color: var(--text-dim); margin-top: 4px; }
+
+    /* ── Signal pills ── */
+    .sig { display: inline-flex; align-items: center; gap: 6px; font-size: .75rem; font-weight: 700; letter-spacing: .08em; padding: 3px 10px; border: 1px solid; }
+    .sig.buy  { color: var(--green); border-color: var(--green); background: rgba(40,200,122,.08); }
+    .sig.sell { color: var(--red);   border-color: var(--red);   background: rgba(224,48,80,.08); }
+    .sig::before { content: '▲'; font-size: .6rem; }
+    .sig.sell::before { content: '▼'; }
+
+    /* ── Status pills ── */
+    .pill { display: inline-block; font-size: .65rem; letter-spacing: .1em; text-transform: uppercase; padding: 2px 8px; border: 1px solid; }
+    .pill.success { color: var(--green); border-color: var(--green); }
+    .pill.failed  { color: var(--red);   border-color: var(--red); }
+    .pill.running, .pill.queued { color: var(--amber); border-color: var(--amber-d); }
+
+    /* ── Tables ── */
+    table { width: 100%; border-collapse: collapse; font-size: .82rem; }
+    th { font-size: .65rem; letter-spacing: .12em; text-transform: uppercase; color: var(--text-dim); text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--border2); }
+    td { padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+    tr:hover td { background: var(--bg3); }
+    .mono { font-family: var(--mono); }
+
+    /* ── Buttons ── */
+    .btn { display: inline-block; font-family: var(--mono); font-size: .72rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; padding: 9px 20px; cursor: pointer; border: 1px solid; transition: all .15s; }
+    .btn-primary { background: var(--amber); border-color: var(--amber); color: var(--bg); }
+    .btn-primary:hover { background: var(--text-hi); border-color: var(--text-hi); color: var(--bg); }
+    .btn-ghost { background: transparent; border-color: var(--border2); color: var(--text-dim); }
+    .btn-ghost:hover { border-color: var(--text); color: var(--text); }
+    .btn-green { background: transparent; border-color: var(--green); color: var(--green); }
+    .btn-green:hover { background: var(--green); color: var(--bg); }
+
+    /* ── Forms ── */
+    label.field { display: block; margin-bottom: 14px; }
+    label.field .lbl { display: block; font-size: .65rem; letter-spacing: .12em; text-transform: uppercase; color: var(--text-dim); margin-bottom: 5px; }
+    label.field .hint { font-size: .7rem; color: var(--text-dim); margin-top: 3px; }
+    input, select, textarea {
+      width: 100%; font-family: var(--mono); font-size: .85rem;
+      background: var(--bg3); border: 1px solid var(--border2);
+      color: var(--text); padding: 9px 12px;
+    }
+    input:focus, select:focus, textarea:focus { outline: none; border-color: var(--amber); }
+    textarea { min-height: 140px; resize: vertical; line-height: 1.55; }
+
+    /* ── Log ── */
+    .log { background: var(--bg); border: 1px solid var(--border); font-size: .78rem; padding: 14px; line-height: 1.8; overflow-x: auto; white-space: pre-wrap; }
+    .log .ok   { color: var(--green); }
+    .log .warn { color: var(--amber); }
+    .log .err  { color: var(--red); }
+    .log .info { color: var(--text-dim); }
+
+    /* ── Ticker chip ── */
+    .ticker { font-size: .8rem; font-weight: 700; color: var(--amber); letter-spacing: .06em; }
+    .price  { color: var(--text-hi); font-weight: 700; }
+
+    /* ── Empty state ── */
+    .empty { text-align: center; padding: 48px 20px; border: 1px dashed var(--border2); color: var(--text-dim); }
+    .empty p { margin-bottom: 14px; font-family: var(--sans); font-size: 1rem; }
+
+    /* ── Flash ── */
+    .flash { border: 1px solid var(--border2); padding: 10px 14px; margin-bottom: 16px; font-size: .82rem; background: var(--bg2); }
+
+    /* ── Misc ── */
+    .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+    .spacer { flex: 1; }
+    footer { border-top: 1px solid var(--border); margin-top: 48px; }
+    .footer-inner { max-width: 1200px; margin: 0 auto; padding: 16px 24px; display: flex; justify-content: space-between; font-size: .68rem; letter-spacing: .1em; text-transform: uppercase; color: var(--text-dim); }
+  </style>
+  {% block head_extra %}{% endblock %}
+</head>
+<body>
+  <header class="topbar">
+    <a href="{% url 'dashboard' %}" class="brand">
+      <span class="brand-dot"></span>SignalRunner
+      <span class="topbar-sub">BVC</span>
+    </a>
+    <nav>
+      <a href="{% url 'dashboard' %}" class="{% block nav_dash %}{% endblock %}">Dashboard</a>
+      <a href="{% url 'strategy_list' %}" class="{% block nav_strategies %}{% endblock %}">Strategies</a>
+      <a href="{% url 'evaluation_list' %}" class="{% block nav_evals %}{% endblock %}">Evaluations</a>
+      <a href="{% url 'signal_list' %}" class="{% block nav_signals %}{% endblock %}">Signals</a>
+    </nav>
+  </header>
+  <main>
+    {% if messages %}{% for m in messages %}<div class="flash">{{ m }}</div>{% endfor %}{% endif %}
+    {% block content %}{% endblock %}
+  </main>
+  <footer>
+    <div class="footer-inner">
+      <span>SignalRunner · Bourse de Casablanca</span>
+      <span>Not financial advice</span>
+    </div>
+  </footer>
+  {% block body_extra %}{% endblock %}
+</body>
+</html>
