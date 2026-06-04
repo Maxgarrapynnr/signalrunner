@@ -13,6 +13,7 @@ export DATA_DIR="${DATA_DIR:-/app/data}"
 export TIME_ZONE="${TIME_ZONE:-Africa/Casablanca}"
 export Q_WORKERS="${Q_WORKERS:-2}"
 export WEB_WORKERS="${WEB_WORKERS:-3}"
+export MARKETDATA_FALLBACK_PROVIDER="${MARKETDATA_FALLBACK_PROVIDER:-yahoo}"
 export MARKETDATA_PROVIDER="${MARKETDATA_PROVIDER:-casabourse}"
 
 echo "[entrypoint] SECRET_KEY set: $([ -n "$SECRET_KEY" ] && echo yes || echo NO)"

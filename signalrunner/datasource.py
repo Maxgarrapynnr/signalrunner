@@ -87,12 +87,99 @@ class CasabourseProvider(MarketDataProvider):
             ) from exc
 
 
-def get_provider() -> MarketDataProvider:
-    """Return the configured provider. Swap here when adding new sources."""
-    name = getattr(settings, "MARKETDATA_PROVIDER", "casabourse")
+class YahooFinanceProvider(MarketDataProvider):
+    """Fallback provider using yfinance. BVC tickers use the .CS suffix on Yahoo.
+    Works from VPS/server IPs where casablanca-bourse.com is 403-blocked."""
+
+    name = "yahoo"
+
+    # BVC tickers on Yahoo Finance use the .CS suffix (e.g. IAM → IAM.CS).
+    # Some are listed differently — add overrides here as you discover them.
+    SUFFIX = ".CS"
+    TICKER_OVERRIDES: dict[str, str] = {}  # {"BCP": "BCP.CS", ...}
+
+    def _yahoo_ticker(self, bvc_ticker: str) -> str:
+        return self.TICKER_OVERRIDES.get(bvc_ticker.upper(),
+                                         bvc_ticker.upper() + self.SUFFIX)
+
+    def fetch(self, tickers: list[str]) -> dict[str, dict]:
+        try:
+            import yfinance as yf
+        except ImportError as exc:
+            raise DataSourceError("yfinance not installed; `pip install yfinance`") from exc
+
+        out: dict[str, dict] = {}
+        for bvc_ticker in tickers:
+            yt = self._yahoo_ticker(bvc_ticker)
+            try:
+                ticker_obj = yf.Ticker(yt)
+                hist = ticker_obj.history(period="2d")  # last 2 sessions
+                if hist.empty:
+                    continue
+                latest = hist.iloc[-1]
+                prev = hist.iloc[-2] if len(hist) > 1 else None
+                price = float(latest.get("Close", 0) or 0)
+                prev_price = float(prev["Close"]) if prev is not None else price
+                pct_change = ((price - prev_price) / prev_price * 100
+                              if prev_price else 0.0)
+                volume = float(latest.get("Volume", 0) or 0)
+                out[bvc_ticker.upper()] = {
+                    "price": price,
+                    "pct_change": round(pct_change, 4),
+                    "volume": volume,
+                    "raw": {"yahoo_ticker": yt, "close": price,
+                            "open": float(latest.get("Open", 0) or 0),
+                            "high": float(latest.get("High", 0) or 0),
+                            "low": float(latest.get("Low", 0) or 0)},
+                }
+            except Exception as exc:
+                raise DataSourceError(
+                    f"yfinance fetch failed for {yt}: {exc}"
+                ) from exc
+        return out
+
+    def history(self, ticker: str, start: str, end: str):
+        try:
+            import yfinance as yf
+        except ImportError as exc:
+            raise DataSourceError("yfinance not installed") from exc
+        yt = self._yahoo_ticker(ticker)
+        try:
+            df = yf.Ticker(yt).history(start=start, end=end)
+            if df.empty:
+                raise DataSourceError(f"no history from Yahoo for {yt}")
+            # Rename columns to match what tasks.py expects
+            df = df.rename(columns={"Close": "close", "Open": "open",
+                                     "High": "high", "Low": "low",
+                                     "Volume": "volume"})
+            return df
+        except DataSourceError:
+            raise
+        except Exception as exc:
+            raise DataSourceError(
+                f"yfinance history failed for {yt}: {exc}"
+            ) from exc
+
+
+def get_provider(name: str | None = None) -> MarketDataProvider:
+    """Return the configured provider by name."""
+    name = name or getattr(settings, "MARKETDATA_PROVIDER", "casabourse")
     if name == "casabourse":
         return CasabourseProvider()
+    if name == "yahoo":
+        return YahooFinanceProvider()
     raise DataSourceError(f"unknown market-data provider: {name}")
+
+
+def _fallback_provider() -> MarketDataProvider | None:
+    """Return the fallback provider if one is configured."""
+    fallback = getattr(settings, "MARKETDATA_FALLBACK_PROVIDER", "yahoo")
+    if not fallback:
+        return None
+    try:
+        return get_provider(fallback)
+    except DataSourceError:
+        return None
 
 
 # ──────────────────────────────────────────────
@@ -100,8 +187,8 @@ def get_provider() -> MarketDataProvider:
 # ──────────────────────────────────────────────
 def get_quotes(tickers: list[str], *, force_refresh: bool = False) -> dict[str, dict]:
     """Return {ticker: quote-dict} for the requested tickers, using cached
-    snapshots when fresh and pulling from the provider only for stale/missing
-    ones. Persists fresh pulls as MarketDataSnapshot rows."""
+    snapshots when fresh. Tries the primary provider; on failure automatically
+    retries with the fallback provider (Yahoo Finance by default)."""
     tickers = [t.upper() for t in tickers]
     result: dict[str, dict] = {}
     stale: list[str] = []
@@ -120,25 +207,56 @@ def get_quotes(tickers: list[str], *, force_refresh: bool = False) -> dict[str, 
     else:
         stale = list(tickers)
 
-    if stale:
+    if not stale:
+        return result
+
+    # Try primary provider first, fall back automatically on any error.
+    fetched: dict[str, dict] = {}
+    primary_error: str | None = None
+    try:
         fetched = get_provider().fetch(stale)
-        for tk in stale:
-            q = fetched.get(tk)
-            if q is None:
-                continue  # provider had no data for this ticker; skip
-            MarketDataSnapshot.objects.create(
-                ticker=tk, price=q.get("price"), pct_change=q.get("pct_change"),
-                volume=q.get("volume"), raw=q.get("raw", {}),
-                source=get_provider().name,
-            )
-            result[tk] = q
+    except DataSourceError as exc:
+        primary_error = str(exc)
+        print(f"[WARN] primary provider failed ({exc}); trying fallback")
+        fallback = _fallback_provider()
+        if fallback:
+            try:
+                fetched = fallback.fetch(stale)
+                print(f"[INFO] fallback provider ({fallback.name}) succeeded")
+            except DataSourceError as fb_exc:
+                raise DataSourceError(
+                    f"both providers failed — primary: {primary_error}; "
+                    f"fallback ({fallback.name}): {fb_exc}"
+                ) from fb_exc
+        else:
+            raise
+
+    for tk in stale:
+        q = fetched.get(tk)
+        if q is None:
+            continue
+        # Determine which provider actually served this data
+        source = q.get("raw", {}).get("yahoo_ticker") and "yahoo" or get_provider().name
+        MarketDataSnapshot.objects.create(
+            ticker=tk, price=q.get("price"), pct_change=q.get("pct_change"),
+            volume=q.get("volume"), raw=q.get("raw", {}),
+            source=source,
+        )
+        result[tk] = q
 
     return result
 
 
 def get_history(ticker: str, start: str, end: str):
-    """Pass-through to the provider's history (used by indicator strategies)."""
-    return get_provider().history(ticker, start, end)
+    """Pass-through to the provider's history, with automatic fallback."""
+    try:
+        return get_provider().history(ticker, start, end)
+    except DataSourceError as exc:
+        print(f"[WARN] primary history failed for {ticker} ({exc}); trying fallback")
+        fallback = _fallback_provider()
+        if fallback:
+            return fallback.history(ticker, start, end)
+        raise
 
 
 def cleanup_snapshots() -> int:

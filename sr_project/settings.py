@@ -99,6 +99,7 @@ Q_CLUSTER = {
 
 # ── Market-data settings ──────────────────────────────────────────────────────
 MARKETDATA_PROVIDER = os.environ.get("MARKETDATA_PROVIDER", "casabourse")
+MARKETDATA_FALLBACK_PROVIDER = os.environ.get("MARKETDATA_FALLBACK_PROVIDER", "yahoo")
 MARKETDATA_CACHE_TTL_SECONDS = int(os.environ.get("MARKETDATA_CACHE_TTL_SECONDS", "300"))
 SNAPSHOT_RETENTION_DAYS = int(os.environ.get("SNAPSHOT_RETENTION_DAYS", "30"))
 

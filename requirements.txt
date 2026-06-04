@@ -7,6 +7,7 @@ requests
 
 # Market data + indicators
 casabourse
+yfinance        # fallback provider when casabourse is blocked (VPS/server IPs)
 pandas
 
 # Telegram delivery uses requests (already listed above)
