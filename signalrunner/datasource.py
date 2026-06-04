@@ -70,9 +70,12 @@ class CasabourseProvider(MarketDataProvider):
             if wanted is not None and tk.upper() not in wanted:
                 continue
             out[tk] = {
-                "price": _num(row, ("price", "cours", "last", "dernier")),
-                "pct_change": _num(row, ("pct_change", "variation", "var", "change")),
-                "volume": _num(row, ("volume", "vol")),
+                "price": _num(row, ("Dernier cours", "Cours courant", "price",
+                                    "cours", "last", "dernier")),
+                "pct_change": _num(row, ("Variation en %", "Variation %",
+                                         "pct_change", "variation", "var", "change")),
+                "volume": _num(row, ("Volume", "Volume échangé", "Quantité échangée",
+                                     "volume", "vol")),
                 "raw": _row_to_dict(row),
             }
         return out
@@ -305,10 +308,11 @@ def _row_to_dict(row) -> dict:
 
 
 def _row_ticker(row) -> str | None:
-    for key in ("ticker", "Ticker", "symbol", "Symbol", "code", "Code", "valeur",
-                "Valeur", "instrument", "Instrument"):
+    # casabourse real column name is 'Symbole' (from get_instrument_details_)
+    for key in ("Symbole", "ticker", "Ticker", "symbol", "Symbol",
+                "code", "Code", "valeur", "Valeur", "instrument", "Instrument"):
         if key in row and row[key] not in (None, ""):
-            return str(row[key]).strip()
+            return str(row[key]).strip().upper()
     return None
 
 
