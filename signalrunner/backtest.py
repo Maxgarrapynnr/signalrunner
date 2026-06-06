@@ -199,6 +199,25 @@ def _evaluate_indicator(indicator, closes, cfg):
             return "sell", {"macd": round(macd, 4)}
         return None
 
+    if indicator == "rsi_above_ma":
+        # Compound: RSI < threshold AND price > SMA(ma_period).
+        # Buys dips in uptrends only — avoids catching falling knives.
+        rsi_period = int(cfg.get("period", 14))
+        ma_period = int(cfg.get("ma_period", 50))
+        rsi_thr = cfg.get("value", 30)
+        if len(closes) < max(rsi_period + 1, ma_period):
+            return None
+        rsi = _rsi(closes, rsi_period)
+        sma = _sma(closes, ma_period)
+        price = closes[-1]
+        if rsi < rsi_thr and price > sma:
+            return "buy", {
+                "rsi": round(rsi, 2), "rsi_threshold": rsi_thr,
+                "price": round(price, 2), "sma": round(sma, 2),
+                "filter": f"price > SMA{ma_period}",
+            }
+        return None
+
     return None
 
 
