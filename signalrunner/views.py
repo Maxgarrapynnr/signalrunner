@@ -126,6 +126,51 @@ def signal_list(request):
     })
 
 
+# ── Backtesting ───────────────────────────────────────────────────────────────
+@login_required
+@require_http_methods(["GET", "POST"])
+def backtest_new(request, strategy_id):
+    """Show the backtest form (GET) or start a backtest (POST)."""
+    from datetime import date, timedelta
+    strategy = get_object_or_404(Strategy, id=strategy_id)
+    if request.method == "GET":
+        return render(request, "signalrunner/backtest_form.html", {
+            "strategy": strategy,
+            "default_start": (date.today() - timedelta(days=730)).isoformat(),
+            "default_end": date.today().isoformat(),
+        })
+
+    from signalrunner import backtest as bt_engine
+    from datetime import datetime as _dt
+    start = _dt.fromisoformat(request.POST["start_date"]).date()
+    end = _dt.fromisoformat(request.POST["end_date"]).date()
+    horizon = int(request.POST.get("horizon_days") or 5)
+    tp = _float(request.POST.get("take_profit_pct")) or None
+    sl = _float(request.POST.get("stop_loss_pct")) or None
+    bt = bt_engine.start_backtest(strategy, start, end, horizon_days=horizon,
+                                  take_profit_pct=tp, stop_loss_pct=sl)
+    return redirect("backtest_detail", backtest_id=bt.id)
+
+
+@login_required
+def backtest_list(request):
+    from signalrunner.models import Backtest
+    return render(request, "signalrunner/backtest_list.html", {
+        "backtests": Backtest.objects.select_related("strategy").all()[:100],
+    })
+
+
+@login_required
+def backtest_detail(request, backtest_id):
+    from signalrunner.models import Backtest
+    bt = get_object_or_404(Backtest, id=backtest_id)
+    return render(request, "signalrunner/backtest_detail.html", {
+        "bt": bt,
+        "signals": bt.signals.all()[:200],
+        "is_running": bt.status in ("queued", "running"),
+    })
+
+
 # ── JSON API ──────────────────────────────────────────────────────────────────
 @login_required
 @require_http_methods(["POST"])

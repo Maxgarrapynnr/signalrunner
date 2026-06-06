@@ -21,6 +21,11 @@ urlpatterns = [
     # Signals
     path("signals/", views.signal_list, name="signal_list"),
 
+    # Backtesting
+    path("strategies/<uuid:strategy_id>/backtest/", views.backtest_new, name="backtest_new"),
+    path("backtests/", views.backtest_list, name="backtest_list"),
+    path("backtests/<uuid:backtest_id>/", views.backtest_detail, name="backtest_detail"),
+
     # API
     path("api/strategies/<uuid:strategy_id>/evaluate", views.api_evaluate, name="api_evaluate"),
     path("api/evaluations/<uuid:eval_id>", views.api_evaluation_status, name="api_evaluation_status"),

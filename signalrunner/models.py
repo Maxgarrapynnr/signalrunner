@@ -226,6 +226,77 @@ class Delivery(models.Model):
 
 
 # ──────────────────────────────────────────────
+# Backtest  (NEW — replay a strategy over history)
+# ──────────────────────────────────────────────
+class BacktestStatus(models.TextChoices):
+    QUEUED = "queued", "Queued"
+    RUNNING = "running", "Running"
+    SUCCESS = "success", "Success"
+    FAILED = "failed", "Failed"
+
+
+class Backtest(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    strategy = models.ForeignKey(
+        Strategy, related_name="backtests", null=True, on_delete=models.SET_NULL
+    )
+    # Snapshot of the strategy config at backtest time (survives strategy edits).
+    strategy_name = models.CharField(max_length=200, blank=True)
+    config_snapshot = models.JSONField(default=dict, blank=True)
+
+    start_date = models.DateField()
+    end_date = models.DateField()
+    horizon_days = models.PositiveIntegerField(default=5)  # forward-return window
+    take_profit_pct = models.FloatField(null=True, blank=True)  # e.g. 8.0
+    stop_loss_pct = models.FloatField(null=True, blank=True)    # e.g. 4.0
+
+    status = models.CharField(
+        max_length=12, choices=BacktestStatus.choices, default=BacktestStatus.QUEUED
+    )
+    # Computed summary statistics (shape documented in backtest.py).
+    stats = models.JSONField(default=dict, blank=True)
+    # Cumulative equity curve points for charting: [{"date","equity"}...]
+    equity_curve = models.JSONField(default=list, blank=True)
+    log = models.JSONField(default=list, blank=True)
+    error = models.TextField(blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    finished_at = models.DateTimeField(null=True, blank=True)
+    duration_ms = models.PositiveIntegerField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"Backtest {self.strategy_name} [{self.status}]"
+
+
+class BacktestSignal(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    backtest = models.ForeignKey(
+        Backtest, related_name="signals", on_delete=models.CASCADE
+    )
+    ticker = models.CharField(max_length=20)
+    direction = models.CharField(max_length=4, choices=SignalDirection.choices)
+    session_date = models.DateField()           # the day the signal fired
+    entry_price = models.FloatField()
+    # Forward-return measurement
+    exit_price = models.FloatField(null=True, blank=True)
+    exit_date = models.DateField(null=True, blank=True)
+    return_pct = models.FloatField(null=True, blank=True)
+    won = models.BooleanField(null=True)        # direction correct?
+    exit_kind = models.CharField(max_length=12, blank=True)  # horizon|take_profit|stop_loss
+    reason = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        ordering = ["session_date"]
+        indexes = [models.Index(fields=["backtest", "session_date"])]
+
+    def __str__(self):
+        return f"{self.direction.upper()} {self.ticker} @ {self.session_date}"
+
+
+# ──────────────────────────────────────────────
 # Secret  (unchanged from PyRunner/DocRunner)
 # ──────────────────────────────────────────────
 class Secret(models.Model):

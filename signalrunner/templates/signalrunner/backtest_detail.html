@@ -1,0 +1,117 @@
+{% extends "signalrunner/base.html" %}
+{% block title %}Backtest · {{ bt.strategy_name }}{% endblock %}
+{% block head_extra %}
+{% if is_running %}<meta http-equiv="refresh" content="4">{% endif %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+{% endblock %}
+{% block content %}
+<div class="pagehead">
+  <div>
+    <h1 style="display:flex;align-items:center;gap:14px;">Backtest <span class="pill {{ bt.status }}" style="font-size:.85rem;">{{ bt.status }}</span></h1>
+    <p class="label">{{ bt.strategy_name }} · {{ bt.start_date }} → {{ bt.end_date }} · horizon {{ bt.horizon_days }}d{% if bt.take_profit_pct %} · TP {{ bt.take_profit_pct }}%{% endif %}{% if bt.stop_loss_pct %} · SL {{ bt.stop_loss_pct }}%{% endif %}</p>
+  </div>
+  <a href="{% url 'backtest_list' %}" class="btn btn-ghost">← All backtests</a>
+</div>
+
+{% if is_running %}
+<div class="flash" style="border-color:var(--amber);color:var(--amber);">Running… page refreshes automatically.</div>
+{% endif %}
+
+{% if bt.status == "failed" %}
+<div class="panel" style="border-color:var(--red);"><div class="panel-title" style="color:var(--red);">Error</div><div class="log" style="color:var(--red);">{{ bt.error }}</div></div>
+{% endif %}
+
+{% if bt.stats.signal_count %}
+<div class="grid-3" style="margin-bottom:18px;">
+  <div class="stat"><div class="stat-val">{{ bt.stats.signal_count }}</div><div class="stat-label">Signals</div></div>
+  <div class="stat"><div class="stat-val" style="color:{% if bt.stats.win_rate >= 50 %}var(--green){% else %}var(--red){% endif %};">{{ bt.stats.win_rate }}%</div><div class="stat-label">Win rate</div></div>
+  <div class="stat"><div class="stat-val" style="color:{% if bt.stats.avg_return > 0 %}var(--green){% else %}var(--red){% endif %};">{{ bt.stats.avg_return }}%</div><div class="stat-label">Avg return / signal</div></div>
+</div>
+
+<div class="panel">
+  <div class="panel-title">Equity curve (cumulative % return, all signals)</div>
+  <canvas id="equityChart" height="90"></canvas>
+</div>
+
+<div class="grid-2">
+  <div class="panel">
+    <div class="panel-title">Performance</div>
+    <table>
+      <tr><td style="color:var(--text-dim);">Total return (sum)</td><td class="mono" style="color:{% if bt.stats.total_return > 0 %}var(--green){% else %}var(--red){% endif %};">{{ bt.stats.total_return }}%</td></tr>
+      <tr><td style="color:var(--text-dim);">Profit factor</td><td class="mono">{{ bt.stats.profit_factor }}</td></tr>
+      <tr><td style="color:var(--text-dim);">Max drawdown</td><td class="mono" style="color:var(--red);">{{ bt.stats.max_drawdown }}%</td></tr>
+      <tr><td style="color:var(--text-dim);">Sharpe (per-signal)</td><td class="mono">{{ bt.stats.sharpe }}</td></tr>
+      <tr><td style="color:var(--text-dim);">Best / worst</td><td class="mono"><span style="color:var(--green);">{{ bt.stats.best }}%</span> / <span style="color:var(--red);">{{ bt.stats.worst }}%</span></td></tr>
+    </table>
+  </div>
+  <div class="panel">
+    <div class="panel-title">Breakdown</div>
+    <table>
+      <tr><td style="color:var(--text-dim);">Buy / sell signals</td><td class="mono">{{ bt.stats.buy_count }} / {{ bt.stats.sell_count }}</td></tr>
+      {% for kind, count in bt.stats.exit_breakdown.items %}
+      <tr><td style="color:var(--text-dim);">Exit: {{ kind }}</td><td class="mono">{{ count }}</td></tr>
+      {% endfor %}
+    </table>
+  </div>
+</div>
+
+<div class="panel" style="border-color:var(--amber-d);background:rgba(240,168,48,.05);">
+  <p style="font-size:.78rem;color:var(--amber);">⚠ {{ bt.stats.caveat }}</p>
+</div>
+
+<div class="panel">
+  <div class="panel-title">Signals ({{ signals|length }} shown)</div>
+  <table>
+    <thead><tr><th>Date</th><th>Signal</th><th>Ticker</th><th>Entry</th><th>Exit</th><th>Return</th><th>Result</th><th>Exit</th></tr></thead>
+    <tbody>
+      {% for s in signals %}
+      <tr>
+        <td class="mono" style="font-size:.72rem;color:var(--text-dim);">{{ s.session_date }}</td>
+        <td><span class="sig {{ s.direction }}">{{ s.direction|upper }}</span></td>
+        <td><span class="ticker">{{ s.ticker }}</span></td>
+        <td class="mono">{{ s.entry_price|floatformat:2 }}</td>
+        <td class="mono">{{ s.exit_price|floatformat:2 }}</td>
+        <td class="mono" style="color:{% if s.return_pct > 0 %}var(--green){% else %}var(--red){% endif %};">{{ s.return_pct }}%</td>
+        <td>{% if s.won %}<span style="color:var(--green);">WIN</span>{% else %}<span style="color:var(--red);">LOSS</span>{% endif %}</td>
+        <td class="mono" style="font-size:.7rem;color:var(--text-dim);">{{ s.exit_kind }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<script id="equity-data" type="application/json">{{ bt.equity_curve|safe }}</script>
+<script>
+(function(){
+  var raw = document.getElementById('equity-data').textContent;
+  var data;
+  try { data = JSON.parse(raw.replace(/'/g, '"')); } catch(e) { data = []; }
+  if (!data.length) return;
+  var ctx = document.getElementById('equityChart');
+  new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: data.map(function(d){ return d.date; }),
+      datasets: [{
+        label: 'Cumulative return %',
+        data: data.map(function(d){ return d.equity; }),
+        borderColor: '#f0a830',
+        backgroundColor: 'rgba(240,168,48,0.1)',
+        fill: true, tension: 0.2, pointRadius: 0, borderWidth: 2
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: true,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: '#5a6472', maxTicksLimit: 8, font: { size: 10 } }, grid: { color: '#232830' } },
+        y: { ticks: { color: '#5a6472', font: { size: 10 } }, grid: { color: '#232830' } }
+      }
+    }
+  });
+})();
+</script>
+{% elif bt.status == "success" %}
+<div class="empty"><p>No signals fired in this period</p><p class="label">Try a longer date range, a different threshold, or check the strategy condition</p></div>
+{% endif %}
+{% endblock %}

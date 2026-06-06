@@ -1,0 +1,30 @@
+{% extends "signalrunner/base.html" %}
+{% block title %}Backtests{% endblock %}
+{% block content %}
+<div class="pagehead">
+  <div><h1>Backtests</h1><p class="label">Most recent 100</p></div>
+</div>
+{% if backtests %}
+<div class="panel" style="padding:0;">
+  <table>
+    <thead><tr><th>Status</th><th>Strategy</th><th>Period</th><th>Signals</th><th>Win rate</th><th>Avg return</th><th>When</th><th></th></tr></thead>
+    <tbody>
+      {% for bt in backtests %}
+      <tr>
+        <td><span class="pill {{ bt.status }}">{{ bt.status }}</span></td>
+        <td>{{ bt.strategy_name }}</td>
+        <td class="mono" style="font-size:.72rem;color:var(--text-dim);">{{ bt.start_date }} → {{ bt.end_date }}</td>
+        <td class="mono">{{ bt.stats.signal_count|default:"—" }}</td>
+        <td class="mono">{% if bt.stats.win_rate %}{{ bt.stats.win_rate }}%{% else %}—{% endif %}</td>
+        <td class="mono" style="color:{% if bt.stats.avg_return > 0 %}var(--green){% elif bt.stats.avg_return < 0 %}var(--red){% else %}var(--text-dim){% endif %};">{% if bt.stats.avg_return %}{{ bt.stats.avg_return }}%{% else %}—{% endif %}</td>
+        <td class="mono" style="font-size:.72rem;color:var(--text-dim);">{{ bt.created_at|date:"m-d H:i" }}</td>
+        <td><a href="{% url 'backtest_detail' bt.id %}" style="font-size:.72rem;">view →</a></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="empty"><p>No backtests yet</p><p class="label">Open a strategy and click "Backtest" to run one</p></div>
+{% endif %}
+{% endblock %}

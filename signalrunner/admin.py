@@ -4,6 +4,7 @@ from django.contrib import admin
 
 from signalrunner.models import (
     Strategy, Evaluation, Signal, MarketDataSnapshot, Delivery, Secret,
+    Backtest, BacktestSignal,
 )
 
 
@@ -76,3 +77,22 @@ class MarketDataSnapshotAdmin(admin.ModelAdmin):
     list_filter = ["ticker", "source"]
     readonly_fields = ["ticker", "price", "pct_change", "volume", "raw",
                        "source", "fetched_at"]
+
+
+class BacktestSignalInline(admin.TabularInline):
+    model = BacktestSignal
+    extra = 0
+    readonly_fields = ["ticker", "direction", "session_date", "entry_price",
+                       "exit_price", "return_pct", "won", "exit_kind"]
+    can_delete = False
+
+
+@admin.register(Backtest)
+class BacktestAdmin(admin.ModelAdmin):
+    list_display = ["strategy_name", "status", "start_date", "end_date", "created_at"]
+    list_filter = ["status"]
+    readonly_fields = ["strategy", "strategy_name", "config_snapshot", "start_date",
+                       "end_date", "horizon_days", "take_profit_pct", "stop_loss_pct",
+                       "status", "stats", "equity_curve", "log", "error",
+                       "created_at", "finished_at", "duration_ms"]
+    inlines = [BacktestSignalInline]

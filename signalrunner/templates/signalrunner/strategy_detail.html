@@ -15,6 +15,7 @@
       <button type="submit" class="btn btn-green">▶ Evaluate now</button>
     </form>
     <a href="{% url 'strategy_edit' strategy.id %}" class="btn btn-ghost">Edit</a>
+    <a href="{% url 'backtest_new' strategy.id %}" class="btn btn-ghost">Backtest</a>
     <form method="post" action="{% url 'strategy_toggle' strategy.id %}">{% csrf_token %}
       <button type="submit" class="btn btn-ghost">{% if strategy.enabled %}Pause{% else %}Enable{% endif %}</button>
     </form>
