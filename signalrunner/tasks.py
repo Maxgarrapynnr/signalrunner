@@ -174,6 +174,41 @@ def _compute_indicator(ticker, indicator, cfg) -> dict | None:
     if indicator == "macd":
         return _macd(closes, int(cfg.get("fast", 12)), int(cfg.get("slow", 26)),
                      int(cfg.get("signal", 9)))
+
+    if indicator == "volume_spike":
+        # Volume anomaly: fires when today's volume > multiplier × N-day average.
+        # Unusual volume on BVC often precedes major news or a move worth watching.
+        period = int(cfg.get("period", 20))
+        df = datasource.get_history(ticker, _six_months_ago(), end)
+        vols = _volume_series(df)
+        if vols is None or len(vols) < period + 1:
+            return None
+        avg_vol = sum(vols[-(period + 1):-1]) / period
+        today_vol = vols[-1]
+        if avg_vol <= 0:
+            return None
+        ratio = today_vol / avg_vol
+        return {"volume_today": today_vol, "volume_avg": round(avg_vol, 0),
+                "volume_ratio": round(ratio, 2)}
+
+    if indicator == "momentum":
+        # N-day price momentum for live monitoring.
+        lookback = int(cfg.get("lookback", 63))
+        if len(closes) < lookback + 1:
+            return None
+        past = closes[-(lookback + 1)]
+        now = closes[-1]
+        mom = (now - past) / past * 100 if past else 0
+        return {"momentum_pct": round(mom, 2), "lookback_days": lookback}
+
+    if indicator == "price_target":
+        # Watchlist alert: fires when price crosses a specific level you set.
+        # Perfect for "alert me when ATW drops below 480 so I can buy."
+        target = cfg.get("target") or cfg.get("value")
+        if target is None:
+            return None
+        return {"price": round(closes[-1], 2), "target": float(target)}
+
     return None
 
 
@@ -208,6 +243,46 @@ def _indicator_decision(indicator, v, cfg):
         if mp >= sp and macd < sigln:
             return "sell", {"macd": round(macd, 4), "signal": round(sigln, 4)}
         return None
+
+    if indicator == "volume_spike":
+        ratio = v.get("volume_ratio", 0)
+        multiplier = float((cfg.get("multiplier") or cfg.get("value")) or 3.0)
+        direction = cfg.get("direction", "buy")
+        if ratio >= multiplier:
+            return direction, {
+                "volume_ratio": ratio,
+                "multiplier": multiplier,
+                "volume_today": v.get("volume_today"),
+                "volume_avg_20d": v.get("volume_avg"),
+                "note": f"Volume is {ratio}× the 20-day average — unusual activity",
+            }
+        return None
+
+    if indicator == "momentum":
+        mom = v.get("momentum_pct", 0)
+        threshold = float(cfg.get("value", 10.0))
+        direction = cfg.get("direction", "buy")
+        if direction == "buy" and mom >= threshold:
+            return "buy", {"momentum_pct": mom, "lookback_days": v.get("lookback_days"),
+                           "threshold": threshold}
+        if direction == "sell" and mom <= -threshold:
+            return "sell", {"momentum_pct": mom, "lookback_days": v.get("lookback_days"),
+                            "threshold": threshold}
+        return None
+
+    if indicator == "price_target":
+        price = v.get("price", 0)
+        target = v.get("target", 0)
+        op = cfg.get("op", "<")
+        direction = cfg.get("direction", "buy")
+        label = cfg.get("label", "")
+        if op in _OPS and _OPS[op](price, target):
+            return direction, {
+                "price": price, "target": target, "op": op,
+                "label": label or f"Price {op} {target}",
+            }
+        return None
+
     return None
 
 
@@ -340,6 +415,22 @@ def _close_series(df):
         if num.shape[1] == 0:
             return None
         col = num.columns[0]
+    return [float(x) for x in df[col].tolist() if x is not None]
+
+
+def _volume_series(df):
+    """Extract a list of volume values from a casabourse history DataFrame."""
+    if df is None:
+        return None
+    try:
+        cols = {str(c).lower(): c for c in df.columns}
+    except AttributeError:
+        return None
+    col = next((cols[c] for c in ("volume", "vol", "quantité échangée",
+                                   "cumulvolumeechange", "volume échangé")
+                if c in cols), None)
+    if col is None:
+        return None
     return [float(x) for x in df[col].tolist() if x is not None]
 
 
