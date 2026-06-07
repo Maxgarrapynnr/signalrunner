@@ -8,10 +8,12 @@ class SignalrunnerConfig(AppConfig):
 
     def ready(self):
         """Register recurring django-q schedules on startup."""
+        from django.db import connection
         try:
-            _register_schedules()
+            # Only register schedules if the DB tables actually exist
+            if "django_q_schedule" in connection.introspection.table_names():
+                _register_schedules()
         except Exception:
-            # DB may not be ready yet (e.g. during migrate); skip silently.
             pass
 
 
@@ -31,6 +33,12 @@ def _register_schedules():
             "func": "signalrunner.telegram_bot.poll_telegram_commands",
             "schedule_type": Schedule.MINUTES,
             "minutes": 1,
+        },
+        {
+            "name": "Daily Fundamentals Refresh",
+            "func": "signalrunner.fundamentals.refresh_all",
+            "schedule_type": Schedule.DAILY,
+            "minutes": 0,
         },
     ]
 

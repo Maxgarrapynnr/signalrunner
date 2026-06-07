@@ -321,3 +321,123 @@ class Secret(models.Model):
     def __str__(self):
         return self.name
 
+
+
+# ──────────────────────────────────────────────
+# Fundamental data
+# ──────────────────────────────────────────────
+class StockFundamentals(models.Model):
+    """Daily fundamental snapshot per ticker. Populated by the fundamentals
+    scraper from BVC market data (market cap, price) and AMMC PDF extracts
+    (EPS, dividend, revenue, net income). Refreshed once per trading day."""
+    ticker = models.CharField(max_length=20, db_index=True)
+    name = models.CharField(max_length=200, blank=True)
+    date = models.DateField(db_index=True)
+
+    # From BVC live market API (casabourse)
+    price = models.FloatField(null=True, blank=True)
+    market_cap = models.FloatField(null=True, blank=True)     # MAD
+    shares_outstanding = models.FloatField(null=True, blank=True)
+    week_52_high = models.FloatField(null=True, blank=True)
+    week_52_low = models.FloatField(null=True, blank=True)
+
+    # From AMMC PDF extracts (latest annual report)
+    revenue = models.FloatField(null=True, blank=True)         # MAD
+    net_income = models.FloatField(null=True, blank=True)      # MAD
+    eps = models.FloatField(null=True, blank=True)             # BNA — bénéfice net par action
+    dividend_per_share = models.FloatField(null=True, blank=True)  # MAD
+    fiscal_year = models.IntegerField(null=True, blank=True)
+
+    # Computed ratios (derived from above)
+    pe_ratio = models.FloatField(null=True, blank=True)        # price / eps
+    dividend_yield = models.FloatField(null=True, blank=True)  # dividend / price * 100
+    payout_ratio = models.FloatField(null=True, blank=True)    # dividend / eps * 100
+    price_to_book = models.FloatField(null=True, blank=True)
+
+    # Metadata
+    pdf_source_url = models.URLField(blank=True)
+    data_quality = models.CharField(max_length=20, default="partial",
+        choices=[("full","Full"),("partial","Partial"),("price_only","Price only")])
+    notes = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ["-date"]
+        unique_together = [["ticker", "date"]]
+        indexes = [models.Index(fields=["ticker", "-date"])]
+
+    def __str__(self):
+        return f"{self.ticker} fundamentals {self.date}"
+
+    def compute_ratios(self):
+        """Recompute derived ratios from raw fields."""
+        if self.price and self.eps and self.eps != 0:
+            self.pe_ratio = round(self.price / self.eps, 2)
+        if self.price and self.dividend_per_share and self.price != 0:
+            self.dividend_yield = round(self.dividend_per_share / self.price * 100, 2)
+        if self.eps and self.dividend_per_share and self.eps != 0:
+            self.payout_ratio = round(self.dividend_per_share / self.eps * 100, 1)
+
+
+class FundamentalScore(models.Model):
+    """Composite fundamental score per ticker, recomputed daily.
+    Not a buy signal — a ranking to help identify stocks worth researching."""
+    ticker = models.CharField(max_length=20, unique=True)
+    date = models.DateField()
+
+    # Sub-scores (0–10 each, higher = better)
+    yield_score = models.FloatField(default=0)      # dividend yield vs market avg
+    value_score = models.FloatField(default=0)      # P/E vs market avg (lower = better)
+    consistency_score = models.FloatField(default=0) # dividend payment consistency
+    momentum_score = models.FloatField(default=0)   # 3-month price momentum
+
+    # Composite (0–10)
+    total_score = models.FloatField(default=0)
+    rank = models.PositiveSmallIntegerField(null=True, blank=True)  # 1 = best
+
+    # Readable breakdown
+    summary = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        ordering = ["-total_score"]
+
+    def __str__(self):
+        return f"{self.ticker} score={self.total_score:.1f} rank={self.rank}"
+
+
+class EarningsExtract(models.Model):
+    """Key numbers extracted from an AMMC earnings PDF.
+    One row per annual/semi-annual report per company."""
+    ticker = models.CharField(max_length=20, db_index=True)
+    report_type = models.CharField(max_length=20,
+        choices=[("annual","Annual"),("semi_annual","Semi-annual"),("other","Other")],
+        default="annual")
+    fiscal_year = models.IntegerField()
+    period_end = models.DateField(null=True, blank=True)
+
+    # Extracted financials (MAD thousands)
+    revenue = models.FloatField(null=True, blank=True)
+    net_income = models.FloatField(null=True, blank=True)
+    eps = models.FloatField(null=True, blank=True)
+    dividend_per_share = models.FloatField(null=True, blank=True)
+    total_assets = models.FloatField(null=True, blank=True)
+    equity = models.FloatField(null=True, blank=True)
+
+    # YoY growth (computed vs prior year)
+    revenue_growth_pct = models.FloatField(null=True, blank=True)
+    net_income_growth_pct = models.FloatField(null=True, blank=True)
+    eps_growth_pct = models.FloatField(null=True, blank=True)
+
+    # Source
+    ammc_url = models.URLField(blank=True)
+    pdf_url = models.URLField(blank=True)
+    extracted_at = models.DateTimeField(auto_now_add=True)
+    extraction_confidence = models.CharField(max_length=10, default="medium",
+        choices=[("high","High"),("medium","Medium"),("low","Low")])
+    raw_text_snippet = models.TextField(blank=True)  # for audit
+
+    class Meta:
+        ordering = ["-fiscal_year", "-period_end"]
+        unique_together = [["ticker", "report_type", "fiscal_year"]]
+
+    def __str__(self):
+        return f"{self.ticker} {self.report_type} {self.fiscal_year}"

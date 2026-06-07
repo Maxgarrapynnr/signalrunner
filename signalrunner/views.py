@@ -280,3 +280,35 @@ def _eval_json(ev):
         "finished_at": ev.finished_at.isoformat() if ev.finished_at else None,
         "duration_ms": ev.duration_ms,
     }
+
+
+@login_required
+def fundamentals(request):
+    """Fundamentals dashboard — scores, snapshots, earnings extracts."""
+    from signalrunner.models import FundamentalScore, StockFundamentals, EarningsExtract
+
+    scores = list(FundamentalScore.objects.order_by("rank").select_related())
+    snapshots = {}
+    for ticker in [s.ticker for s in scores]:
+        snap = StockFundamentals.objects.filter(ticker=ticker).order_by("-date").first()
+        if snap:
+            snapshots[ticker] = snap
+
+    recent_earnings = EarningsExtract.objects.order_by("-extracted_at")[:20]
+
+    return render(request, "signalrunner/fundamentals.html", {
+        "scores": scores,
+        "snapshots": snapshots,
+        "recent_earnings": recent_earnings,
+    })
+
+
+@login_required
+@require_http_methods(["POST"])
+def fundamentals_refresh(request):
+    """Trigger a manual fundamentals refresh."""
+    from django_q.tasks import async_task
+    from django.contrib import messages
+    async_task("signalrunner.fundamentals.refresh_all")
+    messages.success(request, "Fundamentals refresh queued — results appear in ~2 minutes.")
+    return redirect("fundamentals")

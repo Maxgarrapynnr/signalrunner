@@ -26,6 +26,10 @@ urlpatterns = [
     path("backtests/", views.backtest_list, name="backtest_list"),
     path("backtests/<uuid:backtest_id>/", views.backtest_detail, name="backtest_detail"),
 
+    # Fundamentals
+    path("fundamentals/", views.fundamentals, name="fundamentals"),
+    path("fundamentals/refresh/", views.fundamentals_refresh, name="fundamentals_refresh"),
+
     # API
     path("api/strategies/<uuid:strategy_id>/evaluate", views.api_evaluate, name="api_evaluate"),
     path("api/evaluations/<uuid:eval_id>", views.api_evaluation_status, name="api_evaluation_status"),

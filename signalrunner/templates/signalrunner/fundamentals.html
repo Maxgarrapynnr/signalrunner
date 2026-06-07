@@ -1,0 +1,142 @@
+{% extends "signalrunner/base.html" %}
+{% block title %}Fundamentals{% endblock %}
+{% block nav_dash %}{% endblock %}
+{% block content %}
+<div class="pagehead">
+  <div>
+    <h1>Fundamentals</h1>
+    <p class="label">BVC stock analysis · dividend yield · P/E · earnings · composite score</p>
+  </div>
+  <div class="row">
+    <form method="post" action="{% url 'fundamentals_refresh' %}">{% csrf_token %}
+      <button type="submit" class="btn btn-primary">↻ Refresh data</button>
+    </form>
+  </div>
+</div>
+
+{% if messages %}{% for m in messages %}<div class="flash" style="border-color:var(--green);color:var(--green);">{{ m }}</div>{% endfor %}{% endif %}
+
+{% if not scores %}
+<div class="empty">
+  <p>No fundamental data yet</p>
+  <p class="label" style="margin-bottom:16px;">Click "Refresh data" to fetch market data, parse AMMC filings, and compute scores</p>
+  <p class="label">First run takes ~2 minutes · subsequent runs update daily automatically</p>
+</div>
+{% else %}
+
+{# ── Composite scores ── #}
+<div class="panel">
+  <div class="panel-title">Fundamental scores · ranked {{ scores|length }} stocks</div>
+  <p class="label" style="margin-bottom:12px;">Score 0–10 per factor. Yield 35% · Value 30% · Consistency 25% · Momentum 10%. Higher = more interesting to research. NOT a buy signal.</p>
+  <table>
+    <thead>
+      <tr>
+        <th>Rank</th><th>Ticker</th><th>Price</th>
+        <th>Div. Yield</th><th>P/E</th><th>EPS (BNA)</th><th>Dividend/share</th>
+        <th>Yield ⭐</th><th>Value ⭐</th><th>Consist. ⭐</th><th>Mom. ⭐</th>
+        <th>Total ⭐</th><th>Data</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for score in scores %}
+      {% with snap=snapshots|default:'' %}
+      {% with s=snapshots %}
+      <tr>
+        <td class="mono" style="color:var(--text-dim);">{{ score.rank }}</td>
+        <td><span class="ticker">{{ score.ticker }}</span></td>
+        <td class="price">
+          {% if snapshots %}
+            {% for k,v in snapshots.items %}{% if k == score.ticker %}{% if v.price %}{{ v.price|floatformat:2 }}{% else %}—{% endif %}{% endif %}{% endfor %}
+          {% else %}—{% endif %}
+        </td>
+        <td class="mono" style="color:{% if score.summary.dividend_yield %}var(--green){% else %}var(--text-dim){% endif %};">
+          {{ score.summary.dividend_yield|default:"—" }}
+        </td>
+        <td class="mono">{{ score.summary.pe_ratio|default:"—" }}</td>
+        <td class="mono" style="color:var(--text-dim);">
+          {% for k,v in snapshots.items %}{% if k == score.ticker %}{% if v.eps %}{{ v.eps|floatformat:2 }}{% else %}—{% endif %}{% endif %}{% endfor %}
+        </td>
+        <td class="mono" style="color:var(--amber);">
+          {% for k,v in snapshots.items %}{% if k == score.ticker %}{% if v.dividend_per_share %}{{ v.dividend_per_share|floatformat:2 }}{% else %}—{% endif %}{% endif %}{% endfor %}
+        </td>
+        <td>{% include "signalrunner/_score_bar.html" with val=score.yield_score %}</td>
+        <td>{% include "signalrunner/_score_bar.html" with val=score.value_score %}</td>
+        <td>{% include "signalrunner/_score_bar.html" with val=score.consistency_score %}</td>
+        <td>{% include "signalrunner/_score_bar.html" with val=score.momentum_score %}
+          <span class="mono" style="font-size:.7rem;color:var(--text-dim);">{{ score.summary.momentum_3m|default:"" }}</span>
+        </td>
+        <td>
+          <span style="font-family:var(--sans);font-size:1.1rem;font-weight:800;
+            color:{% if score.total_score >= 7 %}var(--green){% elif score.total_score >= 4 %}var(--amber){% else %}var(--red){% endif %};">
+            {{ score.total_score|floatformat:1 }}
+          </span>
+        </td>
+        <td>
+          {% for k,v in snapshots.items %}{% if k == score.ticker %}
+          <span class="pill {% if v.data_quality == 'full' %}success{% elif v.data_quality == 'partial' %}running{% else %}failed{% endif %}">{{ v.data_quality }}</span>
+          {% endif %}{% endfor %}
+        </td>
+      </tr>
+      {% endwith %}{% endwith %}
+      {% endfor %}
+    </tbody>
+  </table>
+  <p class="label" style="margin-top:12px;color:var(--text-dim);">
+    ⚠️ Data sourced from BVC API (price/market cap) and AMMC PDF extracts (EPS/dividend). 
+    PDF extraction accuracy varies — verify against official filings. Not financial advice.
+  </p>
+</div>
+
+{# ── Earnings extracts ── #}
+{% if recent_earnings %}
+<div class="panel">
+  <div class="panel-title">Earnings extracts · from AMMC PDFs</div>
+  <table>
+    <thead>
+      <tr><th>Ticker</th><th>Year</th><th>Type</th><th>Revenue</th><th>Net Income</th><th>EPS (BNA)</th><th>Dividend/sh</th><th>Rev. growth</th><th>Confidence</th></tr>
+    </thead>
+    <tbody>
+      {% for e in recent_earnings %}
+      <tr>
+        <td><span class="ticker">{{ e.ticker }}</span></td>
+        <td class="mono">{{ e.fiscal_year }}</td>
+        <td class="mono" style="color:var(--text-dim);font-size:.75rem;">{{ e.report_type }}</td>
+        <td class="mono">{% if e.revenue %}{{ e.revenue|floatformat:0 }}{% else %}—{% endif %}</td>
+        <td class="mono">{% if e.net_income %}{{ e.net_income|floatformat:0 }}{% else %}—{% endif %}</td>
+        <td class="mono" style="color:var(--amber);">{% if e.eps %}{{ e.eps|floatformat:2 }}{% else %}—{% endif %}</td>
+        <td class="mono" style="color:var(--green);">{% if e.dividend_per_share %}{{ e.dividend_per_share|floatformat:2 }}{% else %}—{% endif %}</td>
+        <td class="mono" style="color:{% if e.revenue_growth_pct and e.revenue_growth_pct > 0 %}var(--green){% elif e.revenue_growth_pct %}var(--red){% else %}var(--text-dim){% endif %};">
+          {% if e.revenue_growth_pct %}{{ e.revenue_growth_pct|floatformat:1 }}%{% else %}—{% endif %}
+        </td>
+        <td><span class="pill {% if e.extraction_confidence == 'high' %}success{% elif e.extraction_confidence == 'medium' %}running{% else %}failed{% endif %}">{{ e.extraction_confidence }}</span></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{# ── How to use this ── #}
+<div class="panel" style="border-color:var(--border2);">
+  <div class="panel-title">How to use fundamentals</div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;font-size:.82rem;line-height:1.7;">
+    <div>
+      <p style="color:var(--text-hi);font-weight:700;margin-bottom:6px;">What the score means</p>
+      <p><span style="color:var(--green);">7–10</span> — High dividend yield, cheap valuation, consistent payer. Worth deep research.</p>
+      <p><span style="color:var(--amber);">4–7</span> — Average. May have one strong factor offset by a weak one.</p>
+      <p><span style="color:var(--red);">0–4</span> — Expensive, low yield, or inconsistent. Low priority.</p>
+      <p style="margin-top:8px;color:var(--text-dim);">The score ranks stocks relative to each other — not an absolute buy/sell signal.</p>
+    </div>
+    <div>
+      <p style="color:var(--text-hi);font-weight:700;margin-bottom:6px;">Workflow</p>
+      <p>1. Find stocks with score ≥ 7</p>
+      <p>2. Read their AMMC annual report (click the filing link)</p>
+      <p>3. If you like the business, set a price target alert in SignalRunner</p>
+      <p>4. Wait for the alert, check RSI confirmation, decide</p>
+      <p style="margin-top:8px;color:var(--text-dim);">Fundamentals decide WHAT. Signals decide WHEN.</p>
+    </div>
+  </div>
+</div>
+
+{% endif %}
+{% endblock %}

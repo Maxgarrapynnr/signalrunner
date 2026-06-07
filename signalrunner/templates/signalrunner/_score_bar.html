@@ -1,0 +1,4 @@
+<span title="{{ val }}/10" style="display:inline-block;width:50px;height:6px;background:var(--border2);vertical-align:middle;position:relative;">
+  <span style="display:block;height:100%;width:{{ val }}0%;background:{% if val >= 7 %}var(--green){% elif val >= 4 %}var(--amber){% else %}var(--red){% endif %};"></span>
+</span>
+<span class="mono" style="font-size:.68rem;color:var(--text-dim);margin-left:4px;">{{ val|floatformat:1 }}</span>
