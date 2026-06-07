@@ -76,9 +76,12 @@
         <label class="field">
           <span class="lbl">Indicator</span>
           <select name="ind_indicator" id="ind-select">
-            <option value="rsi" {% if strategy.config.indicator == 'rsi' %}selected{% endif %}>RSI</option>
+            <option value="rsi" {% if strategy.config.indicator == 'rsi' %}selected{% endif %}>RSI (oversold/overbought)</option>
             <option value="ma_cross" {% if strategy.config.indicator == 'ma_cross' %}selected{% endif %}>MA Crossover (SMA)</option>
             <option value="macd" {% if strategy.config.indicator == 'macd' %}selected{% endif %}>MACD</option>
+            <option value="momentum" {% if strategy.config.indicator == 'momentum' %}selected{% endif %}>3-Month Momentum</option>
+            <option value="volume_spike" {% if strategy.config.indicator == 'volume_spike' %}selected{% endif %}>Volume Spike (anomaly alert)</option>
+            <option value="price_target" {% if strategy.config.indicator == 'price_target' %}selected{% endif %}>Price Target (watchlist alert)</option>
           </select>
         </label>
         <div id="rsi-params" class="ind-params">
@@ -124,6 +127,63 @@
           <option value="sell" {% if strategy.config.direction == 'sell' %}selected{% endif %}>Sell</option>
         </select>
       </label>
+
+      <div id="momentum-params" class="ind-params" style="display:none;">
+        <div class="grid-2">
+          <label class="field">
+            <span class="lbl">Lookback (trading days)</span>
+            <input type="number" name="mom_lookback" value="{{ strategy.config.lookback|default:63 }}" min="10" max="252">
+            <span class="hint">63 = ~3 months · 126 = ~6 months</span>
+          </label>
+          <label class="field">
+            <span class="lbl">Min % gain to trigger</span>
+            <input type="number" step="any" name="mom_value" value="{{ strategy.config.value|default:15.0 }}">
+            <span class="hint">e.g. 15 = alert when stock is up 15%+ over lookback</span>
+          </label>
+        </div>
+        <label class="field" style="max-width:220px;">
+          <span class="lbl">Direction</span>
+          <select name="mom_direction">
+            <option value="buy">Buy (upward momentum)</option>
+            <option value="sell">Sell (downward momentum)</option>
+          </select>
+        </label>
+      </div>
+
+      <div id="volume-params" class="ind-params" style="display:none;">
+        <div class="grid-2">
+          <label class="field">
+            <span class="lbl">Average window (days)</span>
+            <input type="number" name="vol_period" value="{{ strategy.config.period|default:20 }}" min="5" max="60">
+          </label>
+          <label class="field">
+            <span class="lbl">Spike multiplier</span>
+            <input type="number" step="0.5" name="vol_multiplier" value="{{ strategy.config.multiplier|default:3.0 }}" min="1.5">
+            <span class="hint">3 = alert when volume is 3x the average</span>
+          </label>
+        </div>
+      </div>
+
+      <div id="price-target-params" class="ind-params" style="display:none;">
+        <div class="grid-2">
+          <label class="field">
+            <span class="lbl">Target price (MAD)</span>
+            <input type="number" step="any" name="pt_target" value="{{ strategy.config.target|default:'' }}" placeholder="e.g. 480.0">
+          </label>
+          <label class="field">
+            <span class="lbl">Condition</span>
+            <select name="pt_op">
+              <option value="<">Price drops below target</option>
+              <option value=">">Price rises above target</option>
+            </select>
+          </label>
+        </div>
+        <label class="field">
+          <span class="lbl">Label (optional)</span>
+          <input type="text" name="pt_label" value="{{ strategy.config.label|default:'' }}" placeholder="e.g. ATW dip entry zone">
+        </label>
+      </div>
+
     </div>
 
     <div class="tabpane {% if strategy.kind == 'custom_python' %}active{% endif %}" id="tab-custom">
@@ -196,14 +256,21 @@ function updateIndParams() {
   document.querySelectorAll('.ind-params').forEach(el => el.style.display = 'none');
   document.getElementById('rsi-condition').style.display = 'none';
   document.getElementById('ind-direction').style.display = 'none';
-  if (indSel.value === 'rsi') {
+  const v = indSel.value;
+  if (v === 'rsi') {
     document.getElementById('rsi-params').style.display = '';
     document.getElementById('rsi-condition').style.display = '';
     document.getElementById('ind-direction').style.display = '';
-  } else if (indSel.value === 'ma_cross') {
+  } else if (v === 'ma_cross') {
     document.getElementById('ma-params').style.display = '';
-  } else if (indSel.value === 'macd') {
+  } else if (v === 'macd') {
     document.getElementById('macd-params').style.display = '';
+  } else if (v === 'momentum') {
+    document.getElementById('momentum-params').style.display = '';
+  } else if (v === 'volume_spike') {
+    document.getElementById('volume-params').style.display = '';
+  } else if (v === 'price_target') {
+    document.getElementById('price-target-params').style.display = '';
   }
 }
 if (indSel) { indSel.addEventListener('change', updateIndParams); updateIndParams(); }

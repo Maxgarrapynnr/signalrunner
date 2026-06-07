@@ -218,6 +218,22 @@ def _save_strategy(request, strategy):
             config.update({"fast": int(p.get("ind_macd_fast", 12) or 12),
                            "slow": int(p.get("ind_macd_slow", 26) or 26),
                            "signal": int(p.get("ind_macd_signal", 9) or 9)})
+        elif ind == "momentum":
+            config = {"indicator": "momentum",
+                      "lookback": int(p.get("mom_lookback", 63) or 63),
+                      "value": _float(p.get("mom_value", 15.0)),
+                      "direction": p.get("mom_direction", "buy")}
+        elif ind == "volume_spike":
+            config = {"indicator": "volume_spike",
+                      "period": int(p.get("vol_period", 20) or 20),
+                      "multiplier": _float(p.get("vol_multiplier", 3.0)),
+                      "direction": "buy"}
+        elif ind == "price_target":
+            config = {"indicator": "price_target",
+                      "target": _float(p.get("pt_target")),
+                      "op": p.get("pt_op", "<"),
+                      "direction": "buy",
+                      "label": p.get("pt_label", "").strip()}
         code = ""
     else:  # custom_python
         config = {}
