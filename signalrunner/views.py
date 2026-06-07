@@ -312,3 +312,19 @@ def fundamentals_refresh(request):
     async_task("signalrunner.fundamentals.refresh_all")
     messages.success(request, "Fundamentals refresh queued — results appear in ~2 minutes.")
     return redirect("fundamentals")
+
+
+@login_required
+def opportunities(request):
+    """Composite Opportunity Score dashboard — merges fundamentals, events, timing."""
+    from signalrunner.opportunity import compute_opportunity_scores
+    from signalrunner.models import Strategy
+
+    # Use the tracked universe
+    tickers = set()
+    for st in Strategy.objects.filter(enabled=True):
+        tickers.update(t.upper() for t in (st.tickers or []))
+    tickers = sorted(tickers) or ["IAM","ATW","BCP","BOA","CIH","LBV","MNG","CSR","LHM","HPS"]
+
+    ranked = compute_opportunity_scores(list(tickers))
+    return render(request, "signalrunner/opportunities.html", {"ranked": ranked})

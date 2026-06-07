@@ -40,6 +40,12 @@ def _register_schedules():
             "schedule_type": Schedule.DAILY,
             "minutes": 0,
         },
+        {
+            "name": "Daily Opportunity Ranking",
+            "func": "signalrunner.opportunity.send_daily_opportunities",
+            "schedule_type": Schedule.DAILY,
+            "minutes": 0,
+        },
     ]
 
     for s in schedules:

@@ -1,0 +1,75 @@
+{% extends "signalrunner/base.html" %}
+{% block title %}Opportunities{% endblock %}
+{% block nav_opp %}active{% endblock %}
+{% block content %}
+<div class="pagehead">
+  <div>
+    <h1>Composite Opportunities</h1>
+    <p class="label">Fundamentals (50%) + Events (20%) + Entry timing (30%) · ranked daily</p>
+  </div>
+</div>
+
+<div class="flash" style="border-color:var(--amber);color:var(--text);">
+  <strong style="color:var(--amber);">This is a research-prioritisation tool, not a buy signal.</strong>
+  It ranks where to point your attention. Backtesting proved mechanical signals don't reliably
+  beat the market on BVC — so the final decision stays with you. Not financial advice.
+</div>
+
+{% if ranked %}
+<div class="panel" style="padding:0;">
+  <table>
+    <thead>
+      <tr>
+        <th>Rank</th><th>Ticker</th><th>Composite</th>
+        <th>Fund. (50%)</th><th>Events (20%)</th><th>Timing (30%)</th>
+        <th>Entry position</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in ranked %}
+      <tr>
+        <td class="mono" style="color:var(--text-dim);">
+          {% if r.rank == 1 %}🥇{% elif r.rank == 2 %}🥈{% elif r.rank == 3 %}🥉{% else %}{{ r.rank }}{% endif %}
+        </td>
+        <td><span class="ticker">{{ r.ticker }}</span></td>
+        <td>
+          <span style="font-family:var(--sans);font-size:1.2rem;font-weight:800;
+            color:{% if r.composite >= 7 %}var(--green){% elif r.composite >= 4.5 %}var(--amber){% else %}var(--text-dim){% endif %};">
+            {{ r.composite }}
+          </span>
+        </td>
+        <td>{% include "signalrunner/_score_bar.html" with val=r.fundamental %}</td>
+        <td>{% include "signalrunner/_score_bar.html" with val=r.event %}</td>
+        <td>{% include "signalrunner/_score_bar.html" with val=r.technical %}</td>
+        <td class="mono" style="font-size:.72rem;color:var(--text-dim);">{{ r.breakdown.technical }}</td>
+      </tr>
+      {% if r.fundamental >= 6 and r.technical >= 7 %}
+      <tr>
+        <td></td>
+        <td colspan="6" style="padding-top:0;">
+          <span style="color:var(--green);font-size:.72rem;letter-spacing:.05em;">
+            ⭐ HIGH-CONVICTION: strong fundamentals + favourable entry timing align — worth researching now
+          </span>
+        </td>
+      </tr>
+      {% endif %}
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="panel" style="border-color:var(--border2);">
+  <div class="panel-title">How to read this</div>
+  <div style="font-size:.82rem;line-height:1.7;color:var(--text);">
+    <p><strong style="color:var(--text-hi);">Composite</strong> blends three independent layers. A high score means a stock is fundamentally sound, has a recent catalyst, AND is in a favourable entry zone — all at once.</p>
+    <p style="margin-top:8px;"><strong style="color:var(--green);">⭐ HIGH-CONVICTION</strong> appears only when fundamentals ≥ 6 AND timing ≥ 7. That's a stock worth owning that's also currently cheap/oversold. Still your decision.</p>
+    <p style="margin-top:8px;color:var(--text-dim);">Workflow: top of list → read the AMMC filing → if you like the business, set a price target → act when your level hits. The score tells you where to look, never when to buy.</p>
+  </div>
+</div>
+{% else %}
+<div class="empty">
+  <p>No opportunity data yet</p>
+  <p class="label">Run the fundamentals refresh first, then this page will populate.</p>
+</div>
+{% endif %}
+{% endblock %}

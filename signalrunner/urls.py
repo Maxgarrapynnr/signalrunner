@@ -29,6 +29,7 @@ urlpatterns = [
     # Fundamentals
     path("fundamentals/", views.fundamentals, name="fundamentals"),
     path("fundamentals/refresh/", views.fundamentals_refresh, name="fundamentals_refresh"),
+    path("opportunities/", views.opportunities, name="opportunities"),
 
     # API
     path("api/strategies/<uuid:strategy_id>/evaluate", views.api_evaluate, name="api_evaluate"),
