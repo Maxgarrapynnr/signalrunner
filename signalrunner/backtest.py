@@ -218,6 +218,47 @@ def _evaluate_indicator(indicator, closes, cfg):
             }
         return None
 
+    if indicator == "momentum":
+        # 3-month (63-day) price momentum: buy when price is up > threshold% over lookback.
+        # Sells when momentum turns negative. Most academically supported edge on
+        # frontier/emerging markets — trends persist due to thin analyst coverage.
+        lookback = int(cfg.get("lookback", 63))   # ~3 months trading days
+        threshold = float(cfg.get("value", 10.0)) # % gain required to trigger
+        direction = cfg.get("direction", "buy")
+        if len(closes) < lookback + 1:
+            return None
+        past_price = closes[-(lookback + 1)]
+        current_price = closes[-1]
+        if past_price <= 0:
+            return None
+        mom = (current_price - past_price) / past_price * 100
+        if direction == "buy" and mom >= threshold:
+            return "buy", {
+                "momentum_pct": round(mom, 2),
+                "lookback_days": lookback,
+                "threshold": threshold,
+                "past_price": round(past_price, 2),
+                "current_price": round(current_price, 2),
+            }
+        if direction == "sell" and mom <= -threshold:
+            return "sell", {
+                "momentum_pct": round(mom, 2),
+                "lookback_days": lookback,
+                "threshold": threshold,
+            }
+        return None
+
+    if indicator == "rsi_overbought":
+        # RSI > threshold → sell signal. Tests if overbought reversal works on BVC.
+        period = int(cfg.get("period", 14))
+        if len(closes) < period + 1:
+            return None
+        rsi = _rsi(closes, period)
+        thr = cfg.get("value", 70)
+        if rsi > thr:
+            return "sell", {"rsi": round(rsi, 2), "threshold": thr}
+        return None
+
     return None
 
 
