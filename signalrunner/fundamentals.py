@@ -363,31 +363,32 @@ def compute_scores(tickers: list[str]) -> list[FundamentalScore]:
     scores = []
     for ticker in tickers:
         ticker = ticker.upper()
-        f = fund_data.get(ticker)
-        score, _ = FundamentalScore.objects.get_or_create(ticker=ticker)
+        fund = fund_data.get(ticker)
+        score, _ = FundamentalScore.objects.get_or_create(
+            ticker=ticker,
+            defaults={"date": today, "total_score": 0}
+        )
         score.date = today
         summary = {}
 
         # ── Yield score (0–10) ────────────────────────────────────────────────
         yield_score = 0.0
-        if f and f.dividend_yield:
-            # 5 = market average, 10 = 2× market average
-            yield_score = min(10.0, (f.dividend_yield / MARKET_AVG_YIELD) * 5)
-            summary["dividend_yield"] = f"{f.dividend_yield:.1f}%"
+        if fund and fund.dividend_yield:
+            yield_score = min(10.0, (fund.dividend_yield / MARKET_AVG_YIELD) * 5)
+            summary["dividend_yield"] = f"{fund.dividend_yield:.1f}%"
             summary["yield_score_note"] = (
-                "above market avg" if f.dividend_yield > MARKET_AVG_YIELD
+                "above market avg" if fund.dividend_yield > MARKET_AVG_YIELD
                 else "below market avg"
             )
         score.yield_score = round(yield_score, 2)
 
         # ── Value score (0–10) — lower P/E = better ───────────────────────────
         value_score = 5.0  # default: neutral
-        if f and f.pe_ratio and f.pe_ratio > 0:
-            # 5 = market P/E, 10 = half market P/E (very cheap), 0 = 2× market P/E
-            value_score = max(0.0, min(10.0, (MARKET_AVG_PE / f.pe_ratio) * 5))
-            summary["pe_ratio"] = f"{f.pe_ratio:.1f}×"
+        if fund and fund.pe_ratio and fund.pe_ratio > 0:
+            value_score = max(0.0, min(10.0, (MARKET_AVG_PE / fund.pe_ratio) * 5))
+            summary["pe_ratio"] = f"{fund.pe_ratio:.1f}×"
             summary["value_note"] = (
-                "cheap vs market" if f.pe_ratio < MARKET_AVG_PE else "expensive vs market"
+                "cheap vs market" if fund.pe_ratio < MARKET_AVG_PE else "expensive vs market"
             )
         score.value_score = round(value_score, 2)
 
@@ -407,13 +408,11 @@ def compute_scores(tickers: list[str]) -> list[FundamentalScore]:
             end = today.isoformat()
             start = (today - timedelta(days=120)).isoformat()
             hist = ds.get_history(ticker, start, end)
-            if hist is not None:
-                closes = [float(x) for x in hist["close"].tolist() if x]
-                if len(closes) >= 63:
-                    mom = (closes[-1] - closes[-63]) / closes[-63] * 100
-                    # 5 = flat, 10 = +20%, 0 = -20%
-                    momentum_score = max(0.0, min(10.0, 5 + (mom / 20) * 5))
-                    summary["momentum_3m"] = f"{mom:+.1f}%"
+            closes = _close_series(hist) if hist is not None else None
+            if closes and len(closes) >= 63:
+                mom = (closes[-1] - closes[-63]) / closes[-63] * 100
+                momentum_score = max(0.0, min(10.0, 5 + (mom / 20) * 5))
+                summary["momentum_3m"] = f"{mom:+.1f}%"
         except Exception:
             pass
         score.momentum_score = round(momentum_score, 2)
